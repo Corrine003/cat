@@ -1,0 +1,66 @@
+{
+  "description": "结果总结页固定预览案例。现有项目已有六维分数时，调用 buildCatReportFromScores(input, precomputedScores)。",
+  "input": {
+    "profile": {
+      "name": "薄荷",
+      "sex": "女孩",
+      "ageText": "1岁3个月",
+      "breed": "中华田园猫",
+      "reportId": "CAT-STAR-0001",
+      "generatedAt": "2026-07-25"
+    },
+    "coreAnswers": {
+      "1": 5, "2": 4, "3": 4, "4": 5, "5": 4, "6": 4, "7": 4, "8": 2,
+      "9": 5, "10": 4, "11": 5, "12": 4, "13": 5, "14": 5, "15": 2, "16": 2,
+      "17": 4, "18": 4, "19": 3, "20": 3, "21": 4, "22": 5, "23": 3, "24": 3,
+      "25": 3, "26": 3, "27": 4, "28": 3, "29": 4, "30": 3, "31": 3, "32": 3,
+      "33": 5, "34": 5, "35": 5, "36": 4, "37": 4, "38": 5, "39": 2, "40": 3,
+      "41": 4, "42": 4, "43": 4, "44": 4, "45": 4, "46": 4, "47": 2, "48": 2
+    },
+    "relationshipAnswers": {
+      "49": "A",
+      "50": "B",
+      "51": "B",
+      "52": "B",
+      "53": "B",
+      "54": "A",
+      "55": "B",
+      "56": "A",
+      "57": "B",
+      "58": "B",
+      "59": "B",
+      "60": "B"
+    },
+    "strategyAnswers": {
+      "61": "E",
+      "62": "E",
+      "63": "D",
+      "64": "B",
+      "65": "B",
+      "66": "E"
+    },
+    "context": {
+      "recentlyMoved": false,
+      "recentlyAdopted": false,
+      "recoveringFromIllnessOrSurgery": false,
+      "familyStructureChanged": false
+    }
+  },
+  "precomputedScores": {
+    "sensitivity": 78,
+    "exploration": 86,
+    "attachment": 64,
+    "sociability": 58,
+    "autonomy": 72,
+    "stability": 76
+  },
+  "expectedKeyOutput": {
+    "scientificType": "谨慎探索型猫咪",
+    "mainTitle": "先观察再出手的好奇侦探",
+    "coreJudgment": "它对世界很警觉，却总忍不住亲自靠近。",
+    "relationshipType": "高边界陪伴型",
+    "badges": ["枕边值夜员", "抱抱需预约", "人类反应实验员"],
+    "relationshipQuote": "它不是忽近忽远，只是一边爱你，一边确认自己仍然自由。",
+    "innerMonologue": "我会自己决定什么时候靠近，但你要一直在那里。"
+  }
+}

@@ -6,7 +6,6 @@ import {
   ArrowRight,
   BadgeCheck,
   Camera,
-  Check,
   Download,
   FileText,
   LockKeyhole,
@@ -16,7 +15,8 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import { ChangeEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { buildAppCatReport } from "./report/report-adapter";
 
 type DimensionId =
   | "perception"
@@ -48,7 +48,15 @@ type Profile = {
   family: string;
 };
 
-const ACCESS_CODES = ["CATSTAR2026", "MEOW2026", "猫咪星轨"];
+type Screen = "profile" | "test" | "generating" | "result";
+
+type TestItem =
+  | { kind: "core"; question: Question }
+  | { kind: "relationship"; question: ChoiceQuestion }
+  | { kind: "strategy"; question: ChoiceQuestion }
+  | { kind: "safety"; id: number; text: string };
+
+const ACCESS_CODES = ["CATLAB2026", "MEOW2026", "猫格观测"];
 
 const dimensions: Record<
   DimensionId,
@@ -124,6 +132,15 @@ const dimensions: Record<
     advice: "维持规律作息，护理和变化后用安静时间帮助它回到熟悉状态。",
   },
 };
+
+const dimensionOrder: DimensionId[] = [
+  "perception",
+  "exploration",
+  "attachment",
+  "social",
+  "autonomy",
+  "stability",
+];
 
 const coreQuestions: Question[] = [
   { id: 1, dimension: "perception", text: "门外脚步、陌生声响或物品轻微掉落时，它会很快停下当前行为并判断声音来源。" },
@@ -388,6 +405,13 @@ const safetyQuestions = [
   "多猫家庭是否突然出现堵路、盯视、追赶或资源冲突？",
 ];
 
+const testItems: TestItem[] = [
+  ...coreQuestions.map((question) => ({ kind: "core" as const, question })),
+  ...relationshipQuestions.map((question) => ({ kind: "relationship" as const, question })),
+  ...strategyQuestions.map((question) => ({ kind: "strategy" as const, question })),
+  ...safetyQuestions.map((text, id) => ({ kind: "safety" as const, id, text })),
+];
+
 const coreOptions = [
   { value: 1, label: "完全不像" },
   { value: 2, label: "不太像" },
@@ -399,19 +423,33 @@ const coreOptions = [
 const typeMap: Record<string, { name: string; line: string }> = {
   "attachment|perception": { name: "月影守望者", line: "对世界谨慎，把信任集中留给重要的人。" },
   "exploration|perception": { name: "星雾调查员", line: "敏锐地扫描环境，也无法拒绝新的谜题。" },
-  "perception|social": { name: "礼貌侦察官", line: "先观察、再靠近，社交前总要完成安全检查。" },
+  "perception|social": { name: "谨慎外交官", line: "先观察、再靠近，社交前总要完成安全检查。" },
   "autonomy|perception": { name: "边境守夜人", line: "边界清晰，认真记录周围每一处变化。" },
-  "perception|stability": { name: "静夜雷达员", line: "感知敏锐，但内在节奏沉稳。" },
-  "attachment|exploration": { name: "跟随远征家", line: "既想探索世界，也喜欢确认你在附近。" },
-  "exploration|social": { name: "星际外交探险家", line: "对新事物和新朋友都保持兴趣。" },
-  "autonomy|exploration": { name: "独立开路者", line: "好奇心强，也坚持按自己的方法前进。" },
-  "exploration|stability": { name: "恒星远行者", line: "敢于研究新事物，同时拥有稳定恢复力。" },
-  "attachment|social": { name: "暖星外交官", line: "愿意回应善意，也重视共享陪伴。" },
+  "perception|stability": { name: "静夜哨兵", line: "感知敏锐，但内在节奏沉稳。" },
+  "attachment|exploration": { name: "归巢冒险家", line: "既想探索世界，也喜欢确认你在附近。" },
+  "exploration|social": { name: "星际领航员", line: "对新事物和新朋友都保持兴趣。" },
+  "autonomy|exploration": { name: "荒野开拓者", line: "好奇心强，也坚持按自己的方法前进。" },
+  "exploration|stability": { name: "恒星远征者", line: "敢于研究新事物，同时拥有稳定恢复力。" },
+  "attachment|social": { name: "暖星联络员", line: "愿意回应善意，也重视共享陪伴。" },
   "attachment|autonomy": { name: "有边界的陪伴者", line: "深爱靠近，但要自己决定靠近方式。" },
-  "attachment|stability": { name: "归巢守护者", line: "关系稳定、陪伴持续，是温和的长期主义者。" },
-  "autonomy|social": { name: "选择性社交指挥官", line: "愿意交朋友，但互动规则由自己制定。" },
-  "social|stability": { name: "温柔接待员", line: "面对关系开放，整体反应平稳可预测。" },
+  "attachment|stability": { name: "暖巢守护者", line: "关系稳定、陪伴持续，是温和的长期主义者。" },
+  "autonomy|social": { name: "自由外交官", line: "愿意交朋友，但互动规则由自己制定。" },
+  "social|stability": { name: "温和协调者", line: "面对关系开放，整体反应平稳可预测。" },
   "autonomy|stability": { name: "静默领航员", line: "不依赖持续关注，也清楚自己的节奏和边界。" },
+};
+
+const singleDimensionTypes: Record<DimensionId, { name: string; line: string }> = {
+  perception: { name: "敏锐观测员", line: "它会认真读取环境变化，安全感来自可预测的空间线索。" },
+  exploration: { name: "纸箱调查专家", line: "它对新鲜事物保持强烈兴趣，常用行动理解世界。" },
+  attachment: { name: "暖巢贴近者", line: "它重视和主要照顾者的共享空间，会主动确认关系连接。" },
+  social: { name: "友好接待员", line: "它更愿意回应温和的新关系，也容易从善意互动里获得安全感。" },
+  autonomy: { name: "自由领地主", line: "它很重视选择权和身体边界，亲近也要按自己的节奏发生。" },
+  stability: { name: "恒定生活家", line: "它的日常节律和恢复能力较稳定，反应通常比较容易预测。" },
+};
+
+const balancedType = {
+  name: "均衡生活家",
+  line: "它没有特别极端的单一倾向，更擅长根据环境和关系对象调整自己的行为方式。",
 };
 
 const lowModifiers: Record<DimensionId, string> = {
@@ -468,20 +506,6 @@ const strategyTags: Record<number, Record<string, { tag: string; monologue: stri
   },
 };
 
-const steps = [
-  { id: "intro", label: "档案" },
-  { id: "perception", label: "感知力" },
-  { id: "exploration", label: "探索力" },
-  { id: "attachment", label: "依附力" },
-  { id: "social", label: "社交力" },
-  { id: "autonomy", label: "自主力" },
-  { id: "stability", label: "稳定力" },
-  { id: "relationship", label: "关系" },
-  { id: "strategy", label: "彩蛋" },
-  { id: "safety", label: "提醒" },
-  { id: "result", label: "报告" },
-];
-
 function scoreBand(score: number | null) {
   if (score === null) return "信息不足";
   if (score <= 32) return "偏低倾向";
@@ -493,6 +517,72 @@ function sortedPair(a: DimensionId, b: DimensionId) {
   return [a, b].sort().join("|");
 }
 
+function makeScientificType(kind: "balanced" | "single" | "pair", top: DimensionId, second: DimensionId) {
+  if (kind === "balanced") return "均衡适应型";
+  if (kind === "single") return `高${dimensions[top].label}主导型`;
+  return `高${dimensions[top].label}·高${dimensions[second].label}型`;
+}
+
+function derivePersonality(
+  scores: Record<DimensionId, number | null>,
+  sortable: DimensionId[],
+) {
+  if (sortable.length < 2) {
+    const top = sortable[0] ?? "attachment";
+    const second = sortable[1] ?? "stability";
+    const low = [...sortable].reverse()[0] ?? "social";
+    return {
+      top,
+      second,
+      low,
+      type: { name: "猫格观察员", line: "这份画像更接近一次初步观察，补充更多有效答案后会更稳定。" },
+      scientificType: "初步观察型",
+      mainStars: [dimensions[top].star, dimensions[second].star, dimensions[low].star],
+    };
+  }
+
+  const top = sortable[0] ?? "attachment";
+  const second = sortable[1] ?? "stability";
+  const low = [...sortable].reverse()[0] ?? "social";
+  const validScores = sortable
+    .map((id) => scores[id])
+    .filter((score): score is number => score !== null);
+  const topScore = scores[top] ?? 0;
+  const secondScore = scores[second] ?? 0;
+  const spread = validScores.length ? Math.max(...validScores) - Math.min(...validScores) : 0;
+
+  if (validScores.length >= 6 && spread < 12) {
+    return {
+      top,
+      second,
+      low,
+      type: balancedType,
+      scientificType: makeScientificType("balanced", top, second),
+      mainStars: [dimensions[top].star, dimensions[second].star, dimensions[low].star],
+    };
+  }
+
+  if (topScore >= 85 && topScore - secondScore >= 15) {
+    return {
+      top,
+      second,
+      low,
+      type: singleDimensionTypes[top],
+      scientificType: makeScientificType("single", top, second),
+      mainStars: [dimensions[top].star, dimensions[second].star, dimensions[low].star],
+    };
+  }
+
+  return {
+    top,
+    second,
+    low,
+    type: typeMap[sortedPair(top, second)] ?? balancedType,
+    scientificType: makeScientificType("pair", top, second),
+    mainStars: [dimensions[top].star, dimensions[second].star, dimensions[low].star],
+  };
+}
+
 function dimensionText(score: number | null, id: DimensionId) {
   if (score === null) return "这一维度有效答案不足，建议补充观察后再解读。";
   if (score <= 32) return dimensions[id].low;
@@ -500,12 +590,187 @@ function dimensionText(score: number | null, id: DimensionId) {
   return dimensions[id].high;
 }
 
+function dimensionNeed(id: DimensionId) {
+  const needs: Record<DimensionId, string> = {
+    perception: "它更需要可预测的动线、安静的退路，以及不会突然逼近的互动方式。",
+    exploration: "它需要可控的新鲜感，例如纸箱、嗅闻、益智取食和能逐步解开的小游戏。",
+    attachment: "它需要稳定回应和共享空间，但回应不等于随时抱起，安静陪伴也很重要。",
+    social: "它需要低压力的关系建立方式，温和、慢速、可退出的新接触会比热情围观更有效。",
+    autonomy: "它需要明确的身体边界和选择权，亲近最好由它主动发起或允许继续。",
+    stability: "它需要规律作息和一致规则，惊吓、护理或变化后要给它恢复节奏的时间。",
+  };
+  return needs[id];
+}
+
+function directTrait(id: DimensionId, score: number | null, name: string) {
+  if (score === null) return `${name}在${dimensions[id].label}上的有效答案还不够，暂时不适合下太明确的结论。`;
+
+  const highTraits: Record<DimensionId, string> = {
+    perception: `${name}是比较敏感、会读环境的猫。它很容易注意到声音、气味、陌生人和家里动线的变化，所以它的谨慎不是“胆小”，更像是在认真确认安全。`,
+    exploration: `${name}的好奇心和行动力很强。它不只是“爱玩”，而是需要通过闻、看、钻、试、扑来理解这个家；如果日常刺激太少，它可能会把精力转移到夜跑、翻找、扒门或研究桌面物品上。`,
+    attachment: `${name}是很需要关系确认的猫，也就是主人常说的“粘人”。它靠近你、跟着你、在你回家时重新建立接触，并不一定只是要吃的，而是在确认“你还在，我和你的关系还稳定”。`,
+    social: `${name}对关系比较开放。它可能愿意接触熟悉家庭成员，也能在温和访客面前逐渐放松；但这仍然需要对方动作慢、声音低、不要一上来就摸。`,
+    autonomy: `${name}的边界感很清楚。它不是不亲人，而是更在意“我能不能自己决定什么时候靠近、什么时候结束互动”。强抱、强摸、突然限制行动，容易让它把亲近和压力绑在一起。`,
+    stability: `${name}的日常节奏相对稳定。它受刺激后更容易回到正常状态，也比较能承受等待和小挫折；这种稳定感会让主人觉得它“好懂、好预测”。`,
+  };
+
+  const lowTraits: Record<DimensionId, string> = {
+    perception: `${name}整体更松弛大胆，对细小变化不一定特别在意。优点是适应起来可能没那么紧绷，但也要注意它有时不会很早表达压力信号。`,
+    exploration: `${name}更偏熟悉派，不一定会主动研究所有新东西。它可能不是不聪明，而是更挑玩具、更依赖熟悉环境和正确的互动方式。`,
+    attachment: `${name}的亲近方式更独立。它不一定频繁贴着人，但这不等于不喜欢主人；它可能更习惯用同房、远距离观察或固定时间靠近来维持关系。`,
+    social: `${name}更像熟人专属型。它对陌生人慢热，甚至会先躲开观察；这不是“脾气差”，而是它需要更长时间确认对方安全。`,
+    autonomy: `${name}对触摸和安排相对随和，可能更容易接受熟悉的人抱起、摸摸或调整位置。即便如此，也要保留退出空间，避免把随和用过头。`,
+    stability: `${name}的状态切换可能比较快，需求受阻时更容易升级表达。它不是故意“闹”，更可能是还没学会用低强度方式等待或恢复。`,
+  };
+
+  if (score >= 68) return highTraits[id];
+  if (score <= 32) return lowTraits[id];
+  return `${name}在${dimensions[id].label}上处于典型范围：它不是固定一种模式，而是会根据当时环境、对象和身体状态切换反应。`;
+}
+
+function attachmentPressureNote(
+  name: string,
+  scores: Record<DimensionId, number | null>,
+  relationshipAnswers: Record<number, string>,
+) {
+  const attachment = scores.attachment ?? 0;
+  const stability = scores.stability ?? 50;
+  const follows = relationshipAnswers[53] === "A";
+  const greetsStrongly = relationshipAnswers[52] === "A";
+  const blocksLeaving = relationshipAnswers[65] === "C" || relationshipAnswers[65] === "E";
+
+  if (attachment >= 78 && (stability <= 45 || follows || greetsStrongly || blocksLeaving)) {
+    return `${name}可能不只是“喜欢粘着你”，还可能更容易在你离开、关门、长时间不回应时出现独处压力。这里不能直接诊断为分离焦虑，但如果你观察到出门前明显紧张、你离开后持续叫、抓门、破坏、食欲下降或如厕异常，就建议把它当成需要认真处理的压力信号。`;
+  }
+
+  if (attachment >= 68) {
+    return `${name}的依附需求比较高。它会更在意你是否回应、是否在同一个空间、离开后是否会回来。你可以把这种“粘人”理解成关系确认需求，而不是单纯撒娇。`;
+  }
+
+  if (attachment <= 32) {
+    return `${name}不一定用贴身方式表达亲近。对它来说，保持距离、在同一空间休息、固定时间出现，也可能已经是在参与关系。`;
+  }
+
+  return `${name}对陪伴的需求比较弹性：有时想靠近，有时也能自己待着。主人可以观察它主动靠近的时间点，而不是用是否一直贴身来判断亲不亲。`;
+}
+
+function strategyInsight(name: string, strategyAnswers: Record<number, string>) {
+  if (strategyAnswers[63] === "D") {
+    return `${name}已经学会用“打断你”来换取注意力，例如挡屏幕、踩键盘或直接占据你的工作区域。与其事后生气，不如提前安排固定互动时间，让它不用把打断升级成沟通方式。`;
+  }
+  if (strategyAnswers[62] === "E") {
+    return `${name}很会调度人类。它可能会把你带到门边、柜子前或某个目标地点，用行动告诉你“现在该你处理了”。这说明它能把自己的需求和你的反应联系起来。`;
+  }
+  if (strategyAnswers[61] === "E") {
+    return `${name}有一定时机策略。被拒绝后不一定立刻放弃，而是可能换个时间、换个方式重新提出需求。`;
+  }
+  if (strategyAnswers[66] === "D" || strategyAnswers[66] === "E") {
+    return `${name}很会学习主人反应。只要某个动作成功引起过注意，它就可能把这个动作变成固定提醒，甚至继续测试新方法。`;
+  }
+  return `${name}的行为策略目前看起来不算激烈，更像是在用已有经验和主人沟通。后续可以继续观察哪些行为会被它反复使用。`;
+}
+
+function generatePracticalAdvice(
+  scores: Record<DimensionId, number | null>,
+  top: DimensionId,
+  second: DimensionId,
+  relationshipAnswers: Record<number, string>,
+  strategyAnswers: Record<number, string>,
+) {
+  const advice = new Set<string>();
+
+  if ((scores.attachment ?? 0) >= 68) {
+    advice.add("每天安排2-3次短而稳定的高质量陪伴，每次5-10分钟也可以，重点是固定、可预期，而不是偶尔一次玩很久。");
+    advice.add("出门和回家时保持平静流程，不要把离开演成很大的告别；回家后先温和回应，再进入正常互动。");
+  }
+  if ((scores.exploration ?? 0) >= 68) {
+    advice.add("用逗猫棒模拟完整捕猎流程：发现、追逐、扑咬、抓住、吃一点小零食或主食，让它的精力有出口。");
+    advice.add("每周轮换纸箱、嗅闻垫、藏食玩具或高处路线，给它新鲜感，但一次不要把环境改得太猛。");
+  }
+  if ((scores.perception ?? 0) >= 68) {
+    advice.add("访客来时先给它退路和观察位，不要让陌生人追着摸；让它自己决定什么时候靠近。");
+  }
+  if ((scores.autonomy ?? 0) >= 68) {
+    advice.add("把抚摸控制在它愿意的时长内，看到尾巴快速摆动、耳朵后压、转头或身体后移，就及时停手。");
+  }
+  if ((scores.stability ?? 0) <= 45) {
+    advice.add("需求被拒绝时不要等它叫到很激烈才回应，可以训练一个低强度替代行为，比如坐下、看向你、到固定垫子上等待。");
+  }
+  if (relationshipAnswers[57] === "E" || strategyAnswers[63] === "D") {
+    advice.add("如果它爱挡屏幕或踩键盘，可以在桌边放一个专属垫子，并在它躺到垫子上时立刻奖励，让它有“陪你工作”的合法位置。");
+  }
+
+  advice.add(dimensionNeed(top));
+  advice.add(dimensionNeed(second));
+
+  return Array.from(advice).slice(0, 6);
+}
+
+function comboInsight(top: DimensionId, second: DimensionId, name: string) {
+  const pair = sortedPair(top, second);
+  const insights: Record<string, string> = {
+    "exploration|perception": `${name}很可能是一边谨慎扫描、一边忍不住靠近检查的类型。它不是单纯胆小，也不是完全莽撞，而是会先收集气味、声音和退路信息，再决定要不要继续探索。`,
+    "attachment|perception": `${name}会把信任集中放在熟悉的人和稳定环境里。它可能对外界变化比较敏感，但在确认你和家里环境可靠之后，会用靠近、观察或共享空间来建立安全感。`,
+    "autonomy|attachment": `${name}的亲近方式带有很强的选择权：它可能愿意陪你、靠近你，但不喜欢被强行安排亲密。对它来说，“我自己来贴贴”比“被抱过来”更舒服。`,
+    "autonomy|exploration": `${name}既想按自己的方式研究世界，也会坚持自己的边界。它适合拥有可选择的路线、高处、藏身点和能够自主决定开始结束的游戏。`,
+    "exploration|stability": `${name}的探索欲和恢复力可以形成很好的组合：它愿意尝试新东西，也比较容易在兴奋之后回到日常节奏。`,
+    "social|stability": `${name}在关系上相对开放，同时反应节奏比较稳定。只要互动方式温和，它往往能逐渐建立可预测的社交模式。`,
+  };
+  return insights[pair] ?? `${name}的猫格不是单一标签能概括的。${dimensions[top].label}决定了它最容易表现出来的行为方向，${dimensions[second].label}则影响它在不同情境中如何调整节奏。`;
+}
+
+function generateCoreAnalysis({
+  name,
+  scores,
+  top,
+  second,
+  low,
+  scientificType,
+  relationshipAnswers,
+  strategyAnswers,
+}: {
+  name: string;
+  scores: Record<DimensionId, number | null>;
+  top: DimensionId;
+  second: DimensionId;
+  low: DimensionId;
+  scientificType: string;
+  relationshipAnswers: Record<number, string>;
+  strategyAnswers: Record<number, string>;
+}) {
+  const topScore = scores[top];
+  const secondScore = scores[second];
+  const lowScore = scores[low];
+  return [
+    {
+      title: "它到底是什么样的猫",
+      body: `${name}的科学类型是${scientificType}。更直白地说，${dimensions[top].label}${topScore === null ? "" : `（${topScore}）`}和${dimensions[second].label}${secondScore === null ? "" : `（${secondScore}）`}是这份报告里最重要的两个线索。${directTrait(top, topScore, name)}`,
+    },
+    {
+      title: "你可能最常在这些场景里感受到它",
+      body: comboInsight(top, second, name),
+    },
+    {
+      title: "它对你的关系需求",
+      body: attachmentPressureNote(name, scores, relationshipAnswers),
+    },
+    {
+      title: "容易被误解的地方",
+      body: `相对较低或较不突出的维度是${dimensions[low].label}${lowScore === null ? "" : `（${lowScore}）`}。这不表示${name}缺少这项能力，而是说明它可能更少在日常里稳定表现出这一端特征。${dimensionText(lowScore, low)}`,
+    },
+    {
+      title: "它正在训练你什么",
+      body: strategyInsight(name, strategyAnswers),
+    },
+  ];
+}
+
 function makeId() {
   return `CAT-${new Date().getFullYear()}-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
 }
 
 function RadarChart({ scores }: { scores: Record<DimensionId, number | null> }) {
-  const ids = Object.keys(dimensions) as DimensionId[];
+  const ids = dimensionOrder;
   const size = 300;
   const center = size / 2;
   const radius = 104;
@@ -518,7 +783,7 @@ function RadarChart({ scores }: { scores: Record<DimensionId, number | null> }) 
 
   return (
     <svg className="radar" viewBox={`0 0 ${size} ${size}`} aria-label="六维性格雷达图" role="img">
-      {[0.25, 0.5, 0.75, 1].map((level) => {
+      {[0.2, 0.4, 0.6, 0.8, 1].map((level) => {
         const ring = ids.map((_, index) => {
           const angle = (Math.PI * 2 * index) / ids.length - Math.PI / 2;
           const r = radius * level;
@@ -547,7 +812,8 @@ export default function Home() {
   const [authorized, setAuthorized] = useState(false);
   const [accessCode, setAccessCode] = useState("");
   const [accessError, setAccessError] = useState("");
-  const [stepIndex, setStepIndex] = useState(0);
+  const [screen, setScreen] = useState<Screen>("profile");
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [profile, setProfile] = useState<Profile>({
     name: "",
     age: "",
@@ -563,8 +829,13 @@ export default function Home() {
   const [reportId, setReportId] = useState(makeId);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const currentStep = steps[stepIndex];
-  const catName = profile.name.trim() || "这只小猫";
+  const catName = profile.name.trim() || "它";
+  const currentItem = testItems[questionIndex];
+  const progress = screen === "profile"
+    ? 0
+    : screen === "test"
+      ? ((questionIndex + 1) / testItems.length) * 100
+      : 100;
 
   const result = useMemo(() => {
     const scores = {} as Record<DimensionId, number | null>;
@@ -587,56 +858,27 @@ export default function Home() {
       }
     });
 
-    const sortable = (Object.keys(scores) as DimensionId[])
-      .filter((id) => scores[id] !== null)
-      .sort((a, b) => (scores[b] ?? 0) - (scores[a] ?? 0));
-    const top = sortable[0] ?? "attachment";
-    const second = sortable[1] ?? "stability";
-    const low = [...sortable].reverse()[0] ?? "social";
-    const type = typeMap[sortedPair(top, second)] ?? { name: "星轨观察员", line: "它的行为画像比较均衡，许多表达会随情境切换。" };
-
-    const relationTag = deriveRelationshipTag(relationshipAnswers);
-    const strategyList = strategyQuestions
-      .map((question) => {
-        const answer = strategyAnswers[question.id];
-        return answer ? strategyTags[question.id][answer] : null;
-      })
-      .filter((item): item is { tag: string; monologue: string } => item !== null);
-    const strategy = strategyList.at(-1) ?? { tag: "星轨观察员", monologue: "我的每一步，都有一点自己的理由。" };
-    const validCore = Object.values(coreAnswers).filter((value) => value !== "unknown").length;
-    const relationUnknown = Object.entries(relationshipAnswers).filter(([id, value]) => {
-      const option = relationshipQuestions.find((q) => q.id === Number(id))?.options[value] ?? "";
-      return option.includes("未观察") || option.includes("没有留意") || option.includes("不确定");
-    }).length;
-    const reliability = safetyQuestions.some((_, index) => safetyFlags[index]) || validCore < 38 || relationUnknown > 3
-      ? "中"
-      : validCore >= 44
-        ? "高"
-        : "中";
-
     return {
       scores,
       counts,
-      top,
-      second,
-      low,
-      type,
-      relationTag,
-      strategy,
-      strategyList,
-      reliability,
-      title: `${type.name} · ${relationTag}`,
-      subtitle: `${type.line} 带着一点${lowModifiers[low]}的底色。`,
-      mainStars: [dimensions[top].star, dimensions[second].star, dimensions[low].star],
+      report: buildAppCatReport({
+        profile,
+        reportId,
+        coreAnswers,
+        relationshipAnswers,
+        strategyAnswers,
+        safetyFlags,
+        scores,
+      }),
     };
-  }, [coreAnswers, relationshipAnswers, safetyFlags, strategyAnswers]);
+  }, [coreAnswers, profile, relationshipAnswers, reportId, safetyFlags, strategyAnswers]);
 
   function authorize() {
     if (ACCESS_CODES.includes(accessCode.trim())) {
       setAuthorized(true);
       setAccessError("");
     } else {
-      setAccessError("授权码暂未识别。可试用：CATSTAR2026");
+      setAccessError("授权码暂未识别。可试用：CATLAB2026");
     }
   }
 
@@ -656,13 +898,42 @@ export default function Home() {
     if (!cardRef.current) return;
     const image = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: "#10172a" });
     const link = document.createElement("a");
-    link.download = `${catName}-猫咪星轨图.png`;
+    link.download = `${catName}-猫格观测卡.png`;
     link.href = image;
     link.click();
   }
 
+  function advanceAfterAnswer() {
+    if (questionIndex < testItems.length - 1) {
+      setQuestionIndex((value) => Math.min(value + 1, testItems.length - 1));
+      return;
+    }
+    setScreen("generating");
+  }
+
+  function answerCore(id: number, value: number | "unknown") {
+    setCoreAnswers((current) => ({ ...current, [id]: value }));
+    advanceAfterAnswer();
+  }
+
+  function answerRelationship(id: number, value: string) {
+    setRelationshipAnswers((current) => ({ ...current, [id]: value }));
+    advanceAfterAnswer();
+  }
+
+  function answerStrategy(id: number, value: string) {
+    setStrategyAnswers((current) => ({ ...current, [id]: value }));
+    advanceAfterAnswer();
+  }
+
+  function answerSafety(id: number, value: boolean) {
+    setSafetyFlags((current) => ({ ...current, [id]: value }));
+    advanceAfterAnswer();
+  }
+
   function resetTest() {
-    setStepIndex(0);
+    setScreen("profile");
+    setQuestionIndex(0);
     setCoreAnswers({});
     setRelationshipAnswers({});
     setStrategyAnswers({});
@@ -670,19 +941,56 @@ export default function Home() {
     setReportId(makeId());
   }
 
+  function goBack() {
+    if (screen === "profile") return;
+    if (screen === "result") {
+      setScreen("test");
+      setQuestionIndex(testItems.length - 1);
+      return;
+    }
+    if (questionIndex === 0) {
+      setScreen("profile");
+      return;
+    }
+    setQuestionIndex((value) => value - 1);
+  }
+
+  function goNext() {
+    if (screen === "profile") {
+      setScreen("test");
+      setQuestionIndex(0);
+      return;
+    }
+    if (screen !== "test") return;
+    if (questionIndex < testItems.length - 1) {
+      setQuestionIndex((value) => value + 1);
+      return;
+    }
+    setScreen("generating");
+  }
+
+  useEffect(() => {
+    if (screen !== "generating") return;
+    const timeout = window.setTimeout(() => setScreen("result"), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [screen]);
+
+  const report = result.report;
+  const reportParagraphs = report?.scientificSummary.split(/\n\n+/).filter(Boolean) ?? [];
+
   if (!authorized) {
     return (
       <main className="gate-page">
         <section className="gate-panel">
           <div className="brand-mark">
             <Moon size={22} />
-            <span>猫咪星轨录</span>
+            <span>猫格观测所</span>
           </div>
           <div className="gate-copy">
-            <p className="eyebrow">Cat Startrail Profile</p>
-            <h1>输入授权码，开启猫咪的星轨档案</h1>
+            <p className="eyebrow">Cat Behavior Observatory</p>
+            <h1>输入授权码，开启猫咪的性格观测</h1>
             <p>
-              完成一组基于日常观察的题目，上传猫咪照片，生成六维性格报告与可保存的星轨分享图。
+              完成一组基于日常观察的题目，上传猫咪照片，生成六维猫格报告与可保存的观测卡。
             </p>
           </div>
           <label className="code-field">
@@ -708,37 +1016,18 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <aside className="side-rail" aria-label="测试进度">
-        <div className="brand-mark">
-          <Moon size={20} />
-          <span>猫咪星轨录</span>
-        </div>
-        <div className="progress-list">
-          {steps.map((step, index) => (
-            <button
-              key={step.id}
-              className={`progress-item ${index === stepIndex ? "active" : ""} ${index < stepIndex ? "done" : ""}`}
-              onClick={() => setStepIndex(index)}
-            >
-              <span>{index < stepIndex ? <Check size={14} /> : index + 1}</span>
-              {step.label}
-            </button>
-          ))}
-        </div>
-      </aside>
-
       <section className="work-area">
         <header className="top-bar">
           <div>
-            <p className="eyebrow">{currentStep.label}</p>
-            <h1>{stepTitle(currentStep.id, catName)}</h1>
+            <p className="eyebrow">猫格观测所</p>
+            <h1>{screenTitle(screen, catName, questionIndex)}</h1>
           </div>
           <div className="meter" aria-label="完成进度">
-            <span style={{ width: `${(stepIndex / (steps.length - 1)) * 100}%` }} />
+            <span style={{ width: `${progress}%` }} />
           </div>
         </header>
 
-        {currentStep.id === "intro" && (
+        {screen === "profile" && (
           <section className="panel profile-grid">
             <div className="photo-uploader">
               <div className="photo-preview">
@@ -784,59 +1073,42 @@ export default function Home() {
           </section>
         )}
 
-        {isDimensionStep(currentStep.id) && (
-          <QuestionPanel
-            questions={coreQuestions.filter((question) => question.dimension === currentStep.id)}
-            answers={coreAnswers}
-            onAnswer={(id, value) => setCoreAnswers((current) => ({ ...current, [id]: value }))}
+        {screen === "test" && currentItem && (
+          <SingleQuestion
+            item={currentItem}
+            index={questionIndex}
+            total={testItems.length}
+            coreAnswers={coreAnswers}
+            relationshipAnswers={relationshipAnswers}
+            strategyAnswers={strategyAnswers}
+            safetyFlags={safetyFlags}
+            onCoreAnswer={answerCore}
+            onRelationshipAnswer={answerRelationship}
+            onStrategyAnswer={answerStrategy}
+            onSafetyAnswer={answerSafety}
           />
         )}
 
-        {currentStep.id === "relationship" && (
-          <ChoicePanel
-            questions={relationshipQuestions}
-            answers={relationshipAnswers}
-            onAnswer={(id, value) => setRelationshipAnswers((current) => ({ ...current, [id]: value }))}
-          />
-        )}
-
-        {currentStep.id === "strategy" && (
-          <ChoicePanel
-            questions={strategyQuestions}
-            answers={strategyAnswers}
-            onAnswer={(id, value) => setStrategyAnswers((current) => ({ ...current, [id]: value }))}
-          />
-        )}
-
-        {currentStep.id === "safety" && (
-          <section className="panel">
-            <div className="section-intro">
-              <h2>近期变化提醒</h2>
-              <p>这些项目不参与打分，只用于在报告中加入温和提醒，避免把健康或压力信号娱乐化。</p>
+        {screen === "generating" && (
+          <section className="panel generating-panel" aria-live="polite">
+            <div className="generating-orbit">
+              <Sparkles size={34} />
             </div>
-            <div className="safety-list">
-              {safetyQuestions.map((question, index) => (
-                <label key={question} className="safety-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(safetyFlags[index])}
-                    onChange={(event) => setSafetyFlags((current) => ({ ...current, [index]: event.target.checked }))}
-                  />
-                  <span>{question}</span>
-                </label>
-              ))}
-            </div>
+            <p className="eyebrow">Generating Report</p>
+            <h2>正在生成报告</h2>
+            <p>正在整理{catName}的行为答案、关系线索和猫格称号，请稍等一下。</p>
+            <div className="loading-line"><span /></div>
           </section>
         )}
 
-        {currentStep.id === "result" && (
+        {screen === "result" && report && (
           <section className="result-layout">
             <article className="report panel">
               <div className="report-heading">
                 <BadgeCheck size={24} />
                 <div>
                   <p className="eyebrow">报告编号 {reportId}</p>
-                  <h2>{catName}的星轨报告</h2>
+                  <h2>{catName}的猫格报告</h2>
                 </div>
               </div>
               {safetyQuestions.some((_, index) => safetyFlags[index]) && (
@@ -844,7 +1116,35 @@ export default function Home() {
                   部分表现可能受到疼痛、疾病或近期压力影响。这份结果不能替代兽医检查，建议优先关注身体状况与生活环境变化。
                 </div>
               )}
-              <p className="summary">{result.subtitle}</p>
+              <div className="report-profile">
+                <div className="report-photo">
+                  {photo ? <img src={photo} alt={`${catName}的照片`} /> : <Camera size={36} />}
+                </div>
+                <div>
+                  <span>本次观测对象</span>
+                  <strong>{catName}</strong>
+                  <p>{profile.age || "年龄未填写"} · {profile.gender || "性别/状态未填写"} · {profile.family}</p>
+                </div>
+              </div>
+              <p className="summary">{report.shortSummary}</p>
+              <div className="identity-grid">
+                <div>
+                  <span>科学类型</span>
+                  <strong>{report.personality.scientificType}</strong>
+                </div>
+                <div>
+                  <span>趣味主称号</span>
+                  <strong>{report.personality.mainTitle}</strong>
+                </div>
+                <div>
+                  <span>关系风格</span>
+                  <strong>{report.relationship.title}</strong>
+                </div>
+              </div>
+              <div className="core-judgment">
+                <span>一句核心判断</span>
+                <strong>{report.personality.coreJudgment}</strong>
+              </div>
               <div className="score-table">
                 {(Object.keys(dimensions) as DimensionId[]).map((id) => (
                   <div key={id} className="score-row">
@@ -860,28 +1160,51 @@ export default function Home() {
                 ))}
               </div>
               <div className="report-block">
-                <h3>核心性格分析</h3>
-                <p>
-                  {catName}的主导星轨落在{dimensions[result.top].label}与{dimensions[result.second].label}之间。
-                  {dimensionText(result.scores[result.top], result.top)}
-                  {" "}{dimensionText(result.scores[result.second], result.second)}
-                </p>
+                <h3>深度性格分析</h3>
+                <div className="analysis-stack">
+                  {reportParagraphs.slice(0, 3).map((paragraph, index) => (
+                    <section key={paragraph}>
+                      <h4>{["面对世界的方式", "核心性格张力", "行为线索汇总"][index] ?? "性格补充"}</h4>
+                      <p>{paragraph}</p>
+                    </section>
+                  ))}
+                </div>
               </div>
               <div className="report-block">
-                <h3>关系行为分析</h3>
-                <p>{relationshipCopy(relationshipAnswers, catName)}</p>
+                <h3>猫咪与主人的关系分析</h3>
+                <p>{report.relationship.summary}</p>
               </div>
               <div className="report-block">
-                <h3>性格冲突点</h3>
-                <p>{conflictCopy(result.top, result.second, catName)}</p>
+                <h3>一个容易误解的地方</h3>
+                <div className="misunderstanding-card">
+                  <strong>{report.misunderstanding.ownerMayThink}</strong>
+                  <p>{report.misunderstanding.betterExplanation}</p>
+                </div>
               </div>
               <div className="report-block">
-                <h3>生活建议</h3>
-                <ul>
-                  <li>{dimensions[result.top].advice}</li>
-                  <li>{dimensions[result.low].advice}</li>
-                  <li>当行为突然变化、食欲或猫砂盆习惯明显改变时，优先排查身体不适与压力源。</li>
-                </ul>
+                <h3>相处建议</h3>
+                <div className="advice-list">
+                  {report.advice.slice(0, 5).map((item) => (
+                    <section key={item.id}>
+                      <strong>{item.title}</strong>
+                      <p>{item.action}</p>
+                      <small>{item.reason}</small>
+                    </section>
+                  ))}
+                </div>
+              </div>
+              <div className="report-block">
+                <h3>行为徽章</h3>
+                <div className="badge-list">
+                  {report.badges.map((badge) => (
+                    <span key={badge.id}>{badge.label}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="report-block">
+                <h3>猫咪内心独白</h3>
+                <blockquote>“{report.innerMonologue}”</blockquote>
+                <p className="quote-line">{report.relationshipQuote}</p>
               </div>
             </article>
 
@@ -889,25 +1212,25 @@ export default function Home() {
               <div className="share-card" ref={cardRef}>
                 <div className="starfield" />
                 <div className="share-header">
-                  <span>猫咪星轨录</span>
+                  <span>猫格观测所</span>
                   <span>{reportId}</span>
                 </div>
                 <div className="share-photo">
                   {photo ? <img src={photo} alt={`${catName}的照片`} /> : <Camera size={52} />}
                 </div>
-                <p className="share-name">{catName}</p>
-                <h2>{result.title}</h2>
-                <p className="share-line">{result.type.line}</p>
+                <p className="share-name">{catName}的猫格观测卡</p>
+                <h2>{report.personality.mainTitle}</h2>
+                <p className="formal-type">{report.personality.scientificType}</p>
+                <p className="share-line">{report.personality.coreJudgment}</p>
                 <RadarChart scores={result.scores} />
                 <div className="tag-row">
-                  {result.mainStars.map((star) => <span key={star}>{star}</span>)}
-                  <span>{result.strategy.tag}</span>
+                  {report.badges.map((badge) => <span key={badge.id}>{badge.label}</span>)}
                 </div>
-                <blockquote>“{result.strategy.monologue}”</blockquote>
+                <blockquote>“{report.innerMonologue}”</blockquote>
               </div>
               <button className="primary-button full" onClick={downloadCard}>
                 <Download size={18} />
-                保存星轨图
+                生成最终分享图
               </button>
               <button className="secondary-button full" onClick={resetTest}>
                 <RotateCcw size={17} />
@@ -917,59 +1240,98 @@ export default function Home() {
           </section>
         )}
 
+        {screen === "result" && !report && (
+          <section className="panel report">
+            <div className="report-heading">
+              <BadgeCheck size={24} />
+              <div>
+                <p className="eyebrow">报告编号 {reportId}</p>
+                <h2>还需要更多有效答案</h2>
+              </div>
+            </div>
+            <p className="summary">有维度的有效核心题少于6道，暂时不能生成正式报告。请回到问卷，把“不确定”的题目补充到更接近日常表现的选项。</p>
+            <div className="score-table">
+              {(Object.keys(dimensions) as DimensionId[]).map((id) => (
+                <div key={id} className="score-row">
+                  <div>
+                    <strong>{dimensions[id].label}</strong>
+                    <span>已有效回答 {result.counts[id]} / 8</span>
+                  </div>
+                  <div className="score-bar">
+                    <span style={{ width: `${Math.max(result.counts[id] * 12.5, 8)}%`, backgroundColor: dimensions[id].color }} />
+                  </div>
+                  <b>{result.scores[id] === null ? "不足" : result.scores[id]}</b>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {screen !== "generating" && (
         <footer className="nav-actions">
-          <button className="secondary-button" onClick={() => setStepIndex((value) => Math.max(0, value - 1))} disabled={stepIndex === 0}>
+          <button className="secondary-button" onClick={goBack} disabled={screen === "profile"}>
             <ArrowLeft size={17} />
-            上一步
+            上一题
           </button>
-          {stepIndex < steps.length - 1 ? (
-            <button className="primary-button" onClick={() => setStepIndex((value) => Math.min(steps.length - 1, value + 1))}>
-              下一步
+          {screen === "profile" ? (
+            <button className="primary-button" onClick={goNext}>
+              开始答题
               <ArrowRight size={17} />
             </button>
-          ) : (
+          ) : screen === "result" ? (
             <button className="primary-button" onClick={downloadCard}>
               <Sparkles size={17} />
               导出图片
             </button>
-          )}
+          ) : null}
         </footer>
+        )}
       </section>
     </main>
   );
 }
 
-function isDimensionStep(id: string): id is DimensionId {
-  return Object.keys(dimensions).includes(id);
+function screenTitle(screen: Screen, name: string, questionIndex: number) {
+  if (screen === "profile") return "先建立猫咪档案";
+  if (screen === "generating") return "正在生成报告";
+  if (screen === "result") return `${name}的猫格报告已生成`;
+  return `第 ${questionIndex + 1} 题`;
 }
 
-function stepTitle(id: string, name: string) {
-  if (id === "intro") return "先建立猫咪档案";
-  if (id === "relationship") return "它如何与你建立关系";
-  if (id === "strategy") return "隐藏策略与趣味彩蛋";
-  if (id === "safety") return "近期变化与健康提醒";
-  if (id === "result") return `${name}的星轨报告已生成`;
-  if (isDimensionStep(id)) return `${dimensions[id].label}观察`;
-  return "猫咪星轨测试";
-}
-
-function QuestionPanel({
-  questions,
-  answers,
-  onAnswer,
+function SingleQuestion({
+  item,
+  index,
+  total,
+  coreAnswers,
+  relationshipAnswers,
+  strategyAnswers,
+  safetyFlags,
+  onCoreAnswer,
+  onRelationshipAnswer,
+  onStrategyAnswer,
+  onSafetyAnswer,
 }: {
-  questions: Question[];
-  answers: Record<number, number | "unknown">;
-  onAnswer: (id: number, value: number | "unknown") => void;
+  item: TestItem;
+  index: number;
+  total: number;
+  coreAnswers: Record<number, number | "unknown">;
+  relationshipAnswers: Record<number, string>;
+  strategyAnswers: Record<number, string>;
+  safetyFlags: Record<number, boolean>;
+  onCoreAnswer: (id: number, value: number | "unknown") => void;
+  onRelationshipAnswer: (id: number, value: string) => void;
+  onStrategyAnswer: (id: number, value: string) => void;
+  onSafetyAnswer: (id: number, value: boolean) => void;
 }) {
-  return (
-    <section className="panel question-stack">
-      <div className="section-intro">
-        <h2>{dimensions[questions[0].dimension].axis}</h2>
-        <p>每题都按日常可观察行为作答，不确定或没观察过可以跳过。</p>
-      </div>
-      {questions.map((question) => (
-        <article key={question.id} className="question-card">
+  if (item.kind === "core") {
+    const question = item.question;
+    return (
+      <section className="panel single-question">
+        <div className="question-meta">
+          <span>{index + 1} / {total}</span>
+          <span>{dimensions[question.dimension].label}</span>
+        </div>
+        <article className="question-card current-question">
           <div className="question-title">
             <span>{String(question.id).padStart(2, "0")}</span>
             <p>{question.text}</p>
@@ -978,66 +1340,104 @@ function QuestionPanel({
             {coreOptions.map((option) => (
               <button
                 key={option.value}
-                className={answers[question.id] === option.value ? "selected" : ""}
-                onClick={() => onAnswer(question.id, option.value)}
+                className={coreAnswers[question.id] === option.value ? "selected" : ""}
+                onClick={() => onCoreAnswer(question.id, option.value)}
               >
                 {option.label}
               </button>
             ))}
-            <button className={answers[question.id] === "unknown" ? "selected" : ""} onClick={() => onAnswer(question.id, "unknown")}>
+            <button className={coreAnswers[question.id] === "unknown" ? "selected" : ""} onClick={() => onCoreAnswer(question.id, "unknown")}>
               不确定
             </button>
           </div>
         </article>
-      ))}
-    </section>
-  );
-}
+      </section>
+    );
+  }
 
-function ChoicePanel({
-  questions,
-  answers,
-  onAnswer,
-}: {
-  questions: ChoiceQuestion[];
-  answers: Record<number, string>;
-  onAnswer: (id: number, value: string) => void;
-}) {
-  return (
-    <section className="panel question-stack">
-      <div className="section-intro">
-        <h2>选择最接近的日常表现</h2>
-        <p>这些题用于生成关系类型、趣味称号和内心独白，不直接改变六维分数。</p>
-      </div>
-      {questions.map((question) => (
-        <article key={question.id} className="question-card choice-card">
+  if (item.kind === "safety") {
+    return (
+      <section className="panel single-question">
+        <div className="question-meta">
+          <span>{index + 1} / {total}</span>
+          <span>近期变化提醒</span>
+        </div>
+        <article className="question-card current-question">
           <div className="question-title">
-            <span>{question.id}</span>
-            <p>{question.text}</p>
+            <span>{String(item.id + 1).padStart(2, "0")}</span>
+            <p>{item.text}</p>
           </div>
-          <div className="choice-list">
-            {Object.entries(question.options).map(([key, value]) => (
-              <button key={key} className={answers[question.id] === key ? "selected" : ""} onClick={() => onAnswer(question.id, key)}>
-                <b>{key}</b>
-                {value}
-              </button>
-            ))}
+          <div className="binary-grid" role="radiogroup" aria-label={`近期变化第${item.id + 1}题`}>
+            <button className={!safetyFlags[item.id] ? "selected" : ""} onClick={() => onSafetyAnswer(item.id, false)}>
+              没有明显出现
+            </button>
+            <button className={safetyFlags[item.id] ? "selected" : ""} onClick={() => onSafetyAnswer(item.id, true)}>
+              有，最近出现过
+            </button>
           </div>
-          <small>{question.use}</small>
+          <small>这道题不参与打分，只用于报告中的温和提醒。</small>
         </article>
-      ))}
+      </section>
+    );
+  }
+
+  const question = item.question;
+  const answers = item.kind === "relationship" ? relationshipAnswers : strategyAnswers;
+  const onAnswer = item.kind === "relationship" ? onRelationshipAnswer : onStrategyAnswer;
+
+  return (
+    <section className="panel single-question">
+      <div className="question-meta">
+        <span>{index + 1} / {total}</span>
+        <span>{item.kind === "relationship" ? "关系行为" : "隐藏策略"}</span>
+      </div>
+      <article className="question-card current-question choice-card">
+        <div className="question-title">
+          <span>{question.id}</span>
+          <p>{question.text}</p>
+        </div>
+        <div className="choice-list">
+          {Object.entries(question.options).map(([key, value]) => (
+            <button key={key} className={answers[question.id] === key ? "selected" : ""} onClick={() => onAnswer(question.id, key)}>
+              <b>{key}</b>
+              {value}
+            </button>
+          ))}
+        </div>
+        <small>{question.use}</small>
+      </article>
     </section>
   );
 }
 
-function deriveRelationshipTag(answers: Record<number, string>) {
-  if (answers[49] === "A" || answers[50] === "A") return "枕边贴贴型";
-  if (answers[49] === "B") return "床尾护航型";
-  if (answers[49] === "D" || answers[53] === "B") return "同房守望型";
-  if (answers[51] === "A" || answers[51] === "B") return "气味依附型";
-  if (answers[53] === "A" || answers[65] === "C") return "跟随确认型";
-  if (answers[49] === "E") return "独立共享型";
-  return "高边界亲近型";
+function deriveRelationshipStyle(answers: Record<number, string>) {
+  if (answers[50] === "A") return "身体依附型";
+  if (answers[49] === "A") return "近距离信任型";
+  if (answers[49] === "B") return "陪伴留退路型";
+  if (answers[49] === "C") return "共享空间型";
+  if (answers[49] === "D") return "守望陪伴型";
+  if (answers[51] === "A" || answers[51] === "B") return "气味依恋型";
+  if (answers[49] === "E") return "独立休息型";
+  return "自主亲近型";
+}
+
+function deriveRelationshipTitle(answers: Record<number, string>) {
+  if (answers[50] === "A") return "贴身信任使者";
+  if (answers[49] === "A") return "枕边巡夜战士";
+  if (answers[49] === "B") return "床尾巡航员";
+  if (answers[49] === "C") return "同床守距观察员";
+  if (answers[49] === "D") return "同房护航员";
+  if (answers[51] === "A" || answers[51] === "B") return "气味收藏家";
+  if (answers[49] === "E") return "独立休息专家";
+  return "高边界贴贴战士";
+}
+
+function deriveSignalTitle(answers: Record<number, string>) {
+  if (answers[54] === "A" || answers[54] === "B") return "慢眨眼信任使者";
+  if (answers[55] === "A" || answers[55] === "B") return "脸颊盖章专员";
+  if (answers[53] === "A" || answers[60] === "A") return "随行确认护卫";
+  if (answers[57] === "E") return "键盘占领战士";
+  return "安静观测搭档";
 }
 
 function relationshipCopy(answers: Record<number, string>, name: string) {
