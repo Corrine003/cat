@@ -81,8 +81,8 @@ const accessoryCatalog: Array<{ id: AccessoryId; label: string }> = [
 ];
 
 const defaultAccessories: Record<AccessoryId, AccessoryPlacement> = {
-  starCrown: { x: 50, y: 18, scale: 1, visible: true },
-  moonNecklace: { x: 50, y: 72, scale: 1, visible: true },
+  starCrown: { x: 50, y: 18, scale: 1, visible: false },
+  moonNecklace: { x: 50, y: 72, scale: 1, visible: false },
   explorerHat: { x: 54, y: 20, scale: 1, visible: false },
   trustBow: { x: 30, y: 42, scale: 0.9, visible: false },
   starCharm: { x: 74, y: 30, scale: 0.72, visible: false },
@@ -1214,7 +1214,7 @@ export default function Home() {
     setActiveAccessory(id);
     setAccessories((current) => ({
       ...current,
-      [id]: { ...current[id], visible: !current[id].visible },
+      [id]: { ...current[id], visible: current[id].visible ? !current[id].visible : true },
     }));
   }
 
@@ -1701,7 +1701,7 @@ export default function Home() {
               <div className="accessory-panel">
                 <div className="accessory-panel-head">
                   <strong>装扮像素猫</strong>
-                  <span>点选显示，拖到猫猫身上</span>
+                  <span>点一下添加，再拖到猫猫身上</span>
                 </div>
                 <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
                   <Sparkles size={17} />
@@ -1787,6 +1787,7 @@ export default function Home() {
                     {imageGenerationStatus === "loading" ? "正在生成底图" : "生成像素猫底图"}
                   </button>
                   {imageGenerationNote && <p className={`image-gen-note ${imageGenerationStatus}`}>{imageGenerationNote}</p>}
+                  <p className="editor-help">先点下面的像素元素添加到图里，再拖动位置。</p>
                   <div className="accessory-toolbar editor-accessory-toolbar">
                     {accessoryCatalog.map((item) => (
                       <button
