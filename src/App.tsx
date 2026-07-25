@@ -896,7 +896,6 @@ export default function Home() {
   const [draggingAccessory, setDraggingAccessory] = useState<AccessoryId | null>(null);
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const posterPhotoRef = useRef<HTMLDivElement>(null);
   const editorPhotoRef = useRef<HTMLDivElement>(null);
 
   const catName = profile.name.trim() || "它";
@@ -1485,9 +1484,7 @@ export default function Home() {
 
                 <section className="poster-profile-grid">
                   <div
-                    className="poster-photo accessory-stage"
-                    ref={posterPhotoRef}
-                    onPointerDown={(event) => placeActiveAccessory(event, posterPhotoRef.current)}
+                    className="poster-photo"
                   >
                     <button className="poster-edit-button" onClick={openImageEditor} data-export-hidden="true" type="button">
                       <Pencil size={14} />
@@ -1500,19 +1497,13 @@ export default function Home() {
                       return (
                         <div
                           key={id}
-                          className={`accessory-sticker ${activeAccessory === id ? "active" : ""}`}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`移动${getAccessoryLabel(id)}`}
+                          className="accessory-sticker poster-sticker"
+                          aria-label={getAccessoryLabel(id)}
                           style={{
                             left: `${placement.x}%`,
                             top: `${placement.y}%`,
                             transform: `translate(-50%, -50%) scale(${placement.scale})`,
                           }}
-                          onPointerDown={(event) => beginAccessoryDrag(event, id, posterPhotoRef.current)}
-                          onPointerMove={(event) => dragAccessory(event, id, posterPhotoRef.current)}
-                          onPointerUp={endAccessoryDrag}
-                          onPointerCancel={endAccessoryDrag}
                         >
                           <AccessoryIcon id={id} colors={placement.colors} />
                         </div>
@@ -1616,78 +1607,6 @@ export default function Home() {
                 <Download size={18} />
                 生成最终分享图
               </button>
-              <div className="accessory-panel">
-                <div className="accessory-panel-head">
-                  <strong>装扮像素猫</strong>
-                  <span>点一下添加，再拖到猫猫身上</span>
-                </div>
-                <div className={`result-photo-prompt ${photo ? "ready" : "missing"}`}>
-                  <div>
-                    <strong>{photo ? "已选择猫咪参考图" : "请先上传猫咪正面照"}</strong>
-                    <p>{photo ? "重新上传会覆盖档案页照片，并用于下一次 AI 像素猫生成。" : "AI 会根据这张照片提取猫咪主体、摆正头像并生成像素风底图。"}</p>
-                  </div>
-                  <label className="secondary-button">
-                    <Upload size={16} />
-                    {photo ? "更换照片" : "上传猫咪照片"}
-                    <input type="file" accept="image/*" onChange={handlePhoto} />
-                  </label>
-                </div>
-                <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
-                  <Sparkles size={17} />
-                  {imageGenerationStatus === "loading" ? "正在生成像素猫" : generatedCatImage ? "重新生成像素猫底图" : "生成像素猫底图"}
-                </button>
-                {imageGenerationNote && <p className={`image-gen-note ${imageGenerationStatus}`}>{imageGenerationNote}</p>}
-                <div className="accessory-toolbar">
-                  {accessoryCatalog.map((item) => (
-                    <button
-                      key={item.id}
-                      className={accessories[item.id].visible ? "selected" : ""}
-                      onClick={() => toggleAccessory(item.id)}
-                      title={`${item.group} · ${item.label}`}
-                    >
-                      <AccessoryIcon id={item.id} colors={accessories[item.id].colors} />
-                      <span>
-                        <b>{item.label}</b>
-                        <small>{item.group}</small>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="accessory-color-panel">
-                  <div className="color-panel-head">
-                    <strong>{activeAccessoryMeta.label}</strong>
-                    <span>{activeAccessoryMeta.group}</span>
-                  </div>
-                  <div className="color-slot-grid">
-                    {accessoryColorSlots.map((slot) => (
-                      <label key={slot.id}>
-                        <span>{slot.label}</span>
-                        <input
-                          type="color"
-                          value={activeAccessoryColors[slot.id]}
-                          onChange={(event) => updateActiveAccessoryColor(slot.id, event.target.value)}
-                        />
-                        <code>{activeAccessoryColors[slot.id]}</code>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="palette-row">
-                    {accessoryColorPalettes.map((palette) => (
-                      <button key={palette.label} type="button" onClick={() => applyAccessoryPalette(palette.colors)} title={`使用${palette.label}色`}>
-                        <span style={{ backgroundColor: palette.colors.primary }} />
-                        <span style={{ backgroundColor: palette.colors.secondary }} />
-                        <span style={{ backgroundColor: palette.colors.accent }} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="accessory-size-row">
-                  <button onClick={() => resizeActiveAccessory(-0.1)}>缩小</button>
-                  <span>{activeAccessoryMeta.label}</span>
-                  <button onClick={() => resizeActiveAccessory(0.1)}>放大</button>
-                  <button onClick={resetAccessories}>重置</button>
-                </div>
-              </div>
               <button className="secondary-button full" onClick={resetTest}>
                 <RotateCcw size={17} />
                 重新测试
@@ -1697,12 +1616,12 @@ export default function Home() {
         )}
 
         {screen === "result" && report && isImageEditorOpen && (
-          <div className="image-editor-backdrop" role="dialog" aria-modal="true" aria-label="编辑像素猫图片">
+          <div className="image-editor-backdrop" role="dialog" aria-modal="true" aria-label="编辑猫猫头像">
             <section className="image-editor-panel">
               <header className="image-editor-header">
                 <div>
                   <p className="eyebrow">Pixel Cat Studio</p>
-                  <h2>编辑{catName}的像素猫</h2>
+                  <h2>编辑{catName}的猫猫头像</h2>
                 </div>
                 <button className="icon-button" onClick={() => setIsImageEditorOpen(false)} aria-label="关闭编辑器">
                   <X size={18} />

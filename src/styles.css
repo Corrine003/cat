@@ -1007,6 +1007,15 @@ p {
   cursor: grabbing;
 }
 
+.poster-sticker {
+  pointer-events: none;
+  cursor: default;
+}
+
+.poster-sticker.active {
+  outline: 0;
+}
+
 .accessory-sticker svg,
 .accessory-toolbar svg {
   display: block;
