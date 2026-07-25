@@ -977,6 +977,10 @@ export default function Home() {
 
   const report = result.report;
   const reportParagraphs = report?.scientificSummary.split(/\n\n+/).filter(Boolean) ?? [];
+  const posterScore = report
+    ? Math.round(Object.values(report.scores).reduce((sum, score) => sum + score, 0) / Object.values(report.scores).length)
+    : 0;
+  const confidencePercent = report ? Math.round(report.confidence.completeness * 100) : 0;
 
   if (!authorized) {
     return (
@@ -1209,24 +1213,109 @@ export default function Home() {
             </article>
 
             <aside className="share-column">
-              <div className="share-card" ref={cardRef}>
-                <div className="starfield" />
-                <div className="share-header">
-                  <span>猫格观测所</span>
-                  <span>{reportId}</span>
-                </div>
-                <div className="share-photo">
-                  {photo ? <img src={photo} alt={`${catName}的照片`} /> : <Camera size={52} />}
-                </div>
-                <p className="share-name">{catName}的猫格观测卡</p>
-                <h2>{report.personality.mainTitle}</h2>
-                <p className="formal-type">{report.personality.scientificType}</p>
-                <p className="share-line">{report.personality.coreJudgment}</p>
-                <RadarChart scores={result.scores} />
-                <div className="tag-row">
-                  {report.badges.map((badge) => <span key={badge.id}>{badge.label}</span>)}
-                </div>
-                <blockquote>“{report.innerMonologue}”</blockquote>
+              <div className="share-card poster-card" ref={cardRef}>
+                <header className="poster-hero">
+                  <div className="poster-stars">★ 猫格观测所 ★</div>
+                  <h2>{catName}的猫咪星轨录</h2>
+                  <p>基于行为数据生成的专属性格报告</p>
+                </header>
+
+                <section className="poster-profile-grid">
+                  <div className="poster-photo">
+                    {photo ? <img src={photo} alt={`${catName}的照片`} /> : <Camera size={52} />}
+                  </div>
+                  <div className="poster-profile-card">
+                    <div className="poster-meta">
+                      <span>ID: {reportId}</span>
+                    </div>
+                    <div className="poster-info-grid">
+                      <div>
+                        <span>昵称</span>
+                        <strong>{catName}</strong>
+                      </div>
+                      <div>
+                        <span>年龄</span>
+                        <strong>{profile.age || "未填写"}</strong>
+                      </div>
+                      <div>
+                        <span>性别</span>
+                        <strong>{profile.gender || "未填写"}</strong>
+                      </div>
+                      <div>
+                        <span>画像完整度</span>
+                        <strong>{confidencePercent}%</strong>
+                      </div>
+                    </div>
+                    <div className="poster-score-row">
+                      <div>
+                        <span>综合星轨分</span>
+                        <strong>{posterScore}</strong>
+                      </div>
+                      <div>
+                        <span>关系风格</span>
+                        <strong>{report.relationship.title}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="poster-section">
+                  <h3>六维性格星图</h3>
+                  <div className="poster-radar-grid">
+                    <RadarChart scores={result.scores} />
+                    <div className="poster-dimension-list">
+                      {(Object.keys(dimensions) as DimensionId[]).map((id) => (
+                        <div key={id}>
+                          <span>{dimensions[id].label}</span>
+                          <strong>{result.scores[id] ?? "不足"}</strong>
+                          <small>{scoreBand(result.scores[id])}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="poster-title-band">
+                  <span>{report.personality.scientificType}</span>
+                  <h3>{report.personality.mainTitle}</h3>
+                  <p>{report.personality.coreJudgment}</p>
+                  <div className="tag-row">
+                    {report.badges.map((badge) => <span key={badge.id}>{badge.label}</span>)}
+                  </div>
+                </section>
+
+                <section className="poster-split">
+                  <div className="poster-section compact">
+                    <h3>性格解读</h3>
+                    {reportParagraphs.slice(0, 3).map((paragraph, index) => (
+                      <p key={paragraph}><b>{String(index + 1).padStart(2, "0")}</b>{paragraph}</p>
+                    ))}
+                  </div>
+                  <div className="poster-section compact">
+                    <h3>关系解读</h3>
+                    <p>{report.relationship.summary}</p>
+                    <blockquote>“{report.relationshipQuote}”</blockquote>
+                  </div>
+                </section>
+
+                <section className="poster-split">
+                  <div className="poster-section compact">
+                    <h3>相处建议</h3>
+                    <ul>
+                      {report.advice.slice(0, 5).map((item) => (
+                        <li key={item.id}>{item.title}：{item.action}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="poster-section compact stamp-box">
+                    <h3>星轨印章</h3>
+                    <div className="paw-stamp"> paw </div>
+                    <p>已完成性格星轨认证</p>
+                    <blockquote>“{report.innerMonologue}”</blockquote>
+                  </div>
+                </section>
+
+                <footer className="poster-footer">每一只猫，都是宇宙里独一无二的星辰</footer>
               </div>
               <button className="primary-button full" onClick={downloadCard}>
                 <Download size={18} />
