@@ -1633,6 +1633,22 @@ export default function Home() {
 
                 <footer className="poster-footer">每一只猫，都是宇宙里独一无二的星辰</footer>
               </div>
+              <div className="result-image-tools" data-export-hidden="true">
+                <label className={`secondary-button full upload-action ${photo ? "ready" : "missing"}`}>
+                  <Upload size={17} />
+                  {photo ? "更换猫咪照片" : "上传猫咪照片"}
+                  <input type="file" accept="image/*" onChange={handlePhoto} />
+                </label>
+                <button className="secondary-button full" onClick={openImageEditor} type="button">
+                  <Pencil size={17} />
+                  编辑像素猫头像
+                </button>
+              </div>
+              {!photo && (
+                <p className="report-upload-hint" data-export-hidden="true">
+                  生成 AI 像素猫前，请先上传一张脸部清楚的猫咪照片。
+                </p>
+              )}
               <button className="primary-button full" onClick={downloadCard}>
                 <Download size={18} />
                 生成最终分享图

@@ -1358,6 +1358,40 @@ p {
   font-weight: 900;
 }
 
+.result-image-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.upload-action {
+  cursor: pointer;
+}
+
+.upload-action.missing {
+  border-color: rgba(239, 143, 114, 0.52);
+  background: rgba(239, 143, 114, 0.12);
+  color: #8f3b2c;
+}
+
+.upload-action.ready {
+  border-color: rgba(47, 109, 79, 0.38);
+  background: rgba(47, 109, 79, 0.1);
+  color: #24583e;
+}
+
+.upload-action input[type="file"] {
+  display: none;
+}
+
+.report-upload-hint {
+  margin: -4px 0 0;
+  color: #8f5f19;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
 .accessory-panel {
   display: grid;
   gap: 10px;
