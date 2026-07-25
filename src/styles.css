@@ -1027,7 +1027,7 @@ p {
 
 .image-editor-panel {
   width: min(1040px, 100%);
-  max-height: min(880px, calc(100vh - 44px));
+  height: min(920px, calc(100vh - 44px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -1067,14 +1067,18 @@ p {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(260px, 1fr) auto;
   gap: 18px;
   padding: 18px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .editor-stage {
   position: relative;
-  width: min(620px, 100%);
+  width: auto;
+  height: 100%;
+  max-width: min(620px, 100%);
+  max-height: 100%;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -1105,13 +1109,23 @@ p {
   display: grid;
   gap: 12px;
   align-content: start;
-  max-width: 760px;
+  max-width: 900px;
   justify-self: center;
   width: 100%;
+  max-height: 300px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdfa;
 }
 
 .editor-accessory-toolbar {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
+.editor-accessory-toolbar button {
+  min-height: 38px;
 }
 
 .editor-size-row {
@@ -1411,7 +1425,7 @@ p {
   grid-template-columns: 34px minmax(0, 1fr);
   gap: 6px;
   align-items: center;
-  padding: 6px 8px;
+  padding: 5px 8px;
   text-align: left;
 }
 
