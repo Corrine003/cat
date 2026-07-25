@@ -99,13 +99,13 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const jimengImage = await callJimengCompatibleProxy(payload, prompt);
-    if (jimengImage) {
+    const generatedImage = await callArkImageGeneration(payload, prompt);
+    if (generatedImage) {
       await store.setJSON(recordKey, {
         ...existingRecord,
         imageCreditsUsed: 1,
-        imageUrl: jimengImage,
-        provider: "jimeng",
+        imageUrl: generatedImage,
+        provider: "ark-seedream",
         prompt,
         generatedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -115,8 +115,8 @@ export const handler: Handler = async (event) => {
         statusCode: 200,
         headers: jsonHeaders,
         body: JSON.stringify({
-          imageUrl: jimengImage,
-          provider: "jimeng",
+          imageUrl: generatedImage,
+          provider: "ark-seedream",
           remainingGenerations: 0,
           prompt,
           note: "已生成像素猫底图。本授权码的 AI 生图额度已使用。",
@@ -124,7 +124,7 @@ export const handler: Handler = async (event) => {
       };
     }
   } catch (error) {
-    console.error("Jimeng image generation failed", error);
+    console.error("Ark image generation failed", error);
   }
 
   const previewImage = createPixelCatSvgDataUrl({
@@ -200,22 +200,41 @@ function buildPixelCatPrompt(payload: GenerateCatImageRequest) {
   const type = payload.scientificType || "猫咪性格画像";
   const title = payload.mainTitle || "像素风猫咪";
   return [
-    "生成一张正方形像素风猫咪头像。",
+    "请根据参考照片生成一张正方形像素风猫咪头像。",
+    "先识别并提取照片中的猫咪主体，把猫咪摆正为正面或轻微三分之二正面的头像构图。",
+    "保留这只猫的真实花色、耳朵形状、脸部斑纹、眼睛颜色和明显识别特征。",
+    "将照片中的真实猫转换为复古像素游戏风插画，不要变成普通卡通或写实照片。",
     `猫咪名字：${name}。`,
     `性格类型：${type}。`,
     `趣味称号：${title}。`,
     payload.coreJudgment ? `核心判断：${payload.coreJudgment}。` : "",
-    "画面要求：复古像素游戏风、清晰猫脸、可爱的眼睛、上半身头像、干净背景、适合在报告卡片中叠加帽子项链饰品。",
+    "画面要求：16-bit/32-bit 像素风、清晰猫脸、上半身头像、居中构图、边缘干净、背景简洁、适合在报告卡片中叠加帽子项链饰品。",
+    "如果参考照片里猫咪姿态歪斜、侧身或被遮挡，请自动校正为更适合头像的正面姿态。",
     "不要生成任何文字、数字、水印、签名或边框。",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
-async function callJimengCompatibleProxy(payload: GenerateCatImageRequest, prompt: string) {
-  const endpoint = process.env.JIMENG_PROXY_URL;
-  const apiKey = process.env.JIMENG_API_KEY;
+async function callArkImageGeneration(payload: GenerateCatImageRequest, prompt: string) {
+  const endpoint = process.env.ARK_IMAGE_ENDPOINT || "https://ark.cn-beijing.volces.com/api/v3/images/generations";
+  const apiKey = process.env.ARK_API_KEY || process.env.JIMENG_API_KEY;
+  const model = process.env.ARK_IMAGE_MODEL || "doubao-seedream-4-5-251128";
   if (!endpoint || !apiKey) return null;
+
+  const requestBody: Record<string, unknown> = {
+    model,
+    prompt,
+    sequential_image_generation: "disabled",
+    response_format: "url",
+    size: process.env.ARK_IMAGE_SIZE || "2K",
+    stream: false,
+    watermark: process.env.ARK_IMAGE_WATERMARK === "true",
+  };
+
+  if (payload.photoDataUrl) {
+    requestBody.image = payload.photoDataUrl;
+  }
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -223,16 +242,12 @@ async function callJimengCompatibleProxy(payload: GenerateCatImageRequest, promp
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      prompt,
-      image: payload.photoDataUrl,
-      size: "1024x1024",
-      style: "pixel_art",
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
-    throw new Error(`Jimeng proxy returned ${response.status}`);
+    const message = await response.text();
+    throw new Error(`Ark image generation returned ${response.status}: ${message}`);
   }
 
   const data = await response.json();
@@ -247,6 +262,7 @@ function normalizeImageUrl(data: unknown): string | null {
   if (typeof record.url === "string") return record.url;
   if (typeof record.image_url === "string") return record.image_url;
   if (typeof record.image_base64 === "string") return `data:image/png;base64,${record.image_base64}`;
+  if (typeof record.b64_json === "string") return `data:image/png;base64,${record.b64_json}`;
 
   const images = record.images;
   if (Array.isArray(images)) {
@@ -256,6 +272,11 @@ function normalizeImageUrl(data: unknown): string | null {
   }
 
   const dataField = record.data;
+  if (Array.isArray(dataField)) {
+    const first = dataField[0];
+    if (typeof first === "string") return first;
+    if (first && typeof first === "object") return normalizeImageUrl(first);
+  }
   if (dataField && typeof dataField === "object") return normalizeImageUrl(dataField);
 
   return null;

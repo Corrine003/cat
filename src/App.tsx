@@ -1144,7 +1144,7 @@ export default function Home() {
 
       setGeneratedCatImage(data.imageUrl);
       setImageGenerationStatus("ready");
-      setImageGenerationNote(data.note || (data.provider === "jimeng" ? "已生成即梦像素猫底图。本授权码已使用一次生图额度。" : "已生成像素猫预览图。"));
+      setImageGenerationNote(data.note || (data.provider === "ark-seedream" ? "已生成 AI 像素猫底图。本授权码已使用一次生图额度。" : "已生成像素猫预览图。"));
     } catch {
       setGeneratedCatImage(createPixelCatSvgDataUrl({
         name: catName,
