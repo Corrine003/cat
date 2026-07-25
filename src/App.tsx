@@ -16,6 +16,7 @@ import {
   Upload,
 } from "lucide-react";
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPixelCatSvgDataUrl } from "./pixel-cat";
 import { buildAppCatReport } from "./report/report-adapter";
 
 type DimensionId =
@@ -907,6 +908,9 @@ export default function Home() {
     family: "单猫家庭",
   });
   const [photo, setPhoto] = useState<string>("");
+  const [generatedCatImage, setGeneratedCatImage] = useState<string>("");
+  const [imageGenerationStatus, setImageGenerationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [imageGenerationNote, setImageGenerationNote] = useState("");
   const [coreAnswers, setCoreAnswers] = useState<Record<number, number | "unknown">>({});
   const [relationshipAnswers, setRelationshipAnswers] = useState<Record<number, string>>({});
   const [strategyAnswers, setStrategyAnswers] = useState<Record<number, string>>({});
@@ -979,8 +983,50 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => setPhoto(String(reader.result));
+    reader.onload = () => {
+      setPhoto(String(reader.result));
+      setGeneratedCatImage("");
+      setImageGenerationStatus("idle");
+      setImageGenerationNote("");
+    };
     reader.readAsDataURL(file);
+  }
+
+  async function generatePixelCatImage() {
+    if (!report) return;
+    setImageGenerationStatus("loading");
+    setImageGenerationNote("正在生成像素猫底图...");
+
+    try {
+      const response = await fetch("/api/generate-cat-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          catName,
+          scientificType: report.personality.scientificType,
+          mainTitle: report.personality.mainTitle,
+          coreJudgment: report.personality.coreJudgment,
+          scores: result.scores,
+          photoDataUrl: photo || undefined,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Image API returned ${response.status}`);
+      const data = (await response.json()) as { imageUrl?: string; provider?: string; note?: string };
+      if (!data.imageUrl) throw new Error("Image API did not return imageUrl");
+
+      setGeneratedCatImage(data.imageUrl);
+      setImageGenerationStatus("ready");
+      setImageGenerationNote(data.note || (data.provider === "jimeng" ? "已生成即梦像素猫底图。" : "已生成像素猫预览图。"));
+    } catch {
+      setGeneratedCatImage(createPixelCatSvgDataUrl({
+        name: catName,
+        title: report.personality.mainTitle,
+        scores: result.scores,
+      }));
+      setImageGenerationStatus("error");
+      setImageGenerationNote("当前本地环境没有连到后端函数，已使用本地像素猫预览图。");
+    }
   }
 
   async function downloadCard() {
@@ -1125,6 +1171,7 @@ export default function Home() {
     ? Math.round(Object.values(report.scores).reduce((sum, score) => sum + score, 0) / Object.values(report.scores).length)
     : 0;
   const confidencePercent = report ? Math.round(report.confidence.completeness * 100) : 0;
+  const posterImage = generatedCatImage || photo;
 
   if (!authorized) {
     return (
@@ -1366,7 +1413,7 @@ export default function Home() {
 
                 <section className="poster-profile-grid">
                   <div className="poster-photo accessory-stage" ref={posterPhotoRef}>
-                    {photo ? <img src={photo} alt={`${catName}的照片`} /> : <Camera size={52} />}
+                    {posterImage ? <img src={posterImage} alt={`${catName}的像素猫底图`} /> : <Camera size={52} />}
                     {accessoryCatalog.map(({ id }) => {
                       const placement = accessories[id];
                       if (!placement.visible) return null;
@@ -1494,6 +1541,11 @@ export default function Home() {
                   <strong>装扮像素猫</strong>
                   <span>点选显示，拖到猫猫身上</span>
                 </div>
+                <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
+                  <Sparkles size={17} />
+                  {imageGenerationStatus === "loading" ? "正在生成像素猫" : generatedCatImage ? "重新生成像素猫底图" : "生成像素猫底图"}
+                </button>
+                {imageGenerationNote && <p className={`image-gen-note ${imageGenerationStatus}`}>{imageGenerationNote}</p>}
                 <div className="accessory-toolbar">
                   {accessoryCatalog.map((item) => (
                     <button
