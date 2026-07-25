@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:functions": "npx netlify functions:serve --port 9999",
     "dev:netlify": "npx netlify dev --port 8888",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
