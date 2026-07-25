@@ -1036,8 +1036,8 @@ export default function Home() {
         title: report.personality.mainTitle,
         scores: result.scores,
       }));
-      setImageGenerationStatus("error");
-      setImageGenerationNote("当前本地环境没有连到后端函数，已使用本地像素猫预览图。");
+      setImageGenerationStatus("ready");
+      setImageGenerationNote("已生成像素猫预览图。线上配置 AI 生图接口后，会根据猫咪照片生成专属像素猫。");
     }
   }
 
