@@ -1438,6 +1438,53 @@ p {
   line-height: 1.6;
 }
 
+.image-gen-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(138, 151, 170, 0.34);
+  border-radius: 8px;
+  background: rgba(255, 253, 250, 0.64);
+  color: var(--ink);
+}
+
+.image-gen-status-card div {
+  display: grid;
+  gap: 2px;
+}
+
+.image-gen-status-card strong {
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.image-gen-status-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.image-gen-status-card.ai {
+  border-color: rgba(47, 109, 79, 0.36);
+  background: rgba(47, 109, 79, 0.1);
+  color: #24583e;
+}
+
+.image-gen-status-card.preview,
+.image-gen-status-card.loading {
+  border-color: rgba(150, 99, 33, 0.34);
+  background: rgba(255, 211, 110, 0.16);
+  color: #7a4f17;
+}
+
+.image-gen-status-card.error {
+  border-color: rgba(178, 74, 52, 0.34);
+  background: rgba(239, 143, 114, 0.16);
+  color: #8f3b2c;
+}
+
 .image-gen-note.ready {
   color: #2f6d4f;
 }

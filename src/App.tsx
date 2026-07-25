@@ -63,6 +63,7 @@ type Profile = {
 };
 
 type Screen = "profile" | "test" | "generating" | "result";
+type ImageGenerationProvider = "none" | "local-preview" | "ark-seedream" | "stored";
 
 type TestItem =
   | { kind: "core"; question: Question }
@@ -885,6 +886,7 @@ export default function Home() {
   const [photo, setPhoto] = useState<string>("");
   const [generatedCatImage, setGeneratedCatImage] = useState<string>("");
   const [imageGenerationStatus, setImageGenerationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [imageGenerationProvider, setImageGenerationProvider] = useState<ImageGenerationProvider>("none");
   const [imageGenerationNote, setImageGenerationNote] = useState("");
   const [coreAnswers, setCoreAnswers] = useState<Record<number, number | "unknown">>({});
   const [relationshipAnswers, setRelationshipAnswers] = useState<Record<number, string>>({});
@@ -907,6 +909,29 @@ export default function Home() {
       : 100;
   const activeAccessoryMeta = accessoryCatalog.find((item) => item.id === activeAccessory) ?? accessoryCatalog[0];
   const activeAccessoryColors = accessories[activeAccessory]?.colors ?? activeAccessoryMeta.defaultColors;
+  const imageGenerationSourceLabel = imageGenerationProvider === "ark-seedream"
+    ? "真实 AI 生图"
+    : imageGenerationProvider === "stored"
+      ? "已保存的历史图"
+      : imageGenerationProvider === "local-preview"
+        ? "本地预览图"
+        : imageGenerationStatus === "loading"
+          ? "正在调用后端"
+          : "尚未生成";
+  const imageGenerationBadgeLabel = imageGenerationProvider === "ark-seedream" || imageGenerationProvider === "stored"
+    ? "已成功"
+    : imageGenerationProvider === "local-preview"
+      ? "预览模式"
+      : imageGenerationStatus === "error"
+        ? "未成功"
+        : imageGenerationStatus === "loading"
+          ? "生成中"
+          : "待生成";
+  const imageGenerationTone = imageGenerationProvider === "ark-seedream" || imageGenerationProvider === "stored"
+    ? "ai"
+    : imageGenerationProvider === "local-preview"
+      ? "preview"
+      : imageGenerationStatus;
 
   const result = useMemo(() => {
     const scores = {} as Record<DimensionId, number | null>;
@@ -978,6 +1003,7 @@ export default function Home() {
       scores: demoScores,
     }));
     setImageGenerationStatus("ready");
+    setImageGenerationProvider("local-preview");
     setImageGenerationNote("已加载演示像素猫底图，可以直接拖动饰品看效果。");
     setAccessories(defaultAccessories);
     setActiveAccessory("starCrown");
@@ -997,6 +1023,7 @@ export default function Home() {
       setPhoto(String(reader.result));
       setGeneratedCatImage("");
       setImageGenerationStatus("idle");
+      setImageGenerationProvider("none");
       setImageGenerationNote("");
     };
     reader.readAsDataURL(file);
@@ -1005,6 +1032,7 @@ export default function Home() {
   async function generatePixelCatImage() {
     if (!report) return;
     setImageGenerationStatus("loading");
+    setImageGenerationProvider("none");
     setImageGenerationNote("正在生成像素猫底图...");
 
     try {
@@ -1023,11 +1051,12 @@ export default function Home() {
       });
 
       if (!response.ok) throw new Error(`Image API returned ${response.status}`);
-      const data = (await response.json()) as { imageUrl?: string; provider?: string; note?: string };
+      const data = (await response.json()) as { imageUrl?: string; provider?: ImageGenerationProvider; note?: string };
       if (!data.imageUrl) throw new Error("Image API did not return imageUrl");
 
       setGeneratedCatImage(data.imageUrl);
       setImageGenerationStatus("ready");
+      setImageGenerationProvider(data.provider ?? "none");
       setImageGenerationNote(data.note || (data.provider === "ark-seedream" ? "已生成 AI 像素猫底图。本授权码已使用一次生图额度。" : "已生成像素猫预览图。"));
     } catch {
       setGeneratedCatImage(createPixelCatSvgDataUrl({
@@ -1036,6 +1065,7 @@ export default function Home() {
         scores: result.scores,
       }));
       setImageGenerationStatus("error");
+      setImageGenerationProvider("none");
       setImageGenerationNote(window.location.hostname === "localhost"
         ? "当前是本地前端预览，未调用 AI 生图。请打开 Netlify 线上地址，或用 netlify dev 启动后端函数。"
         : "AI 生图暂未成功，已显示本地预览图。请检查 Netlify 环境变量和函数日志。");
@@ -1677,6 +1707,19 @@ export default function Home() {
                     <Sparkles size={17} />
                     {imageGenerationStatus === "loading" ? "正在生成底图" : "生成像素猫底图"}
                   </button>
+                  {(imageGenerationStatus !== "idle" || imageGenerationNote) && (
+                    <div className={`image-gen-status-card ${imageGenerationTone}`}>
+                      <div>
+                        <strong>{imageGenerationBadgeLabel}</strong>
+                        <span>来源：{imageGenerationSourceLabel}</span>
+                      </div>
+                      {imageGenerationProvider === "ark-seedream" || imageGenerationProvider === "stored" ? (
+                        <BadgeCheck size={18} />
+                      ) : (
+                        <Sparkles size={18} />
+                      )}
+                    </div>
+                  )}
                   {imageGenerationNote && <p className={`image-gen-note ${imageGenerationStatus}`}>{imageGenerationNote}</p>}
                   <p className="editor-help">先点下面的像素元素添加到图里，再拖动位置。</p>
                   <div className="accessory-toolbar editor-accessory-toolbar">
