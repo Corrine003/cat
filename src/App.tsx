@@ -18,6 +18,17 @@ import {
   X,
 } from "lucide-react";
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AccessoryIcon,
+  accessoryCatalog,
+  accessoryColorPalettes,
+  accessoryColorSlots,
+  defaultAccessories,
+  getAccessoryLabel,
+  type AccessoryColorSlot,
+  type AccessoryId,
+  type AccessoryPlacement,
+} from "./pixel-accessories";
 import { createPixelCatSvgDataUrl } from "./pixel-cat";
 import { buildAppCatReport } from "./report/report-adapter";
 
@@ -59,36 +70,7 @@ type TestItem =
   | { kind: "strategy"; question: ChoiceQuestion }
   | { kind: "safety"; id: number; text: string };
 
-type AccessoryId = "starCrown" | "moonNecklace" | "explorerHat" | "trustBow" | "starCharm" | "fishPin" | "heartSpark";
-
-type AccessoryPlacement = {
-  x: number;
-  y: number;
-  scale: number;
-  visible: boolean;
-};
-
 const ACCESS_CODES = ["CATLAB2026", "MEOW2026", "猫格观测"];
-
-const accessoryCatalog: Array<{ id: AccessoryId; label: string }> = [
-  { id: "starCrown", label: "星星冠" },
-  { id: "moonNecklace", label: "月亮项链" },
-  { id: "explorerHat", label: "探索帽" },
-  { id: "trustBow", label: "信任蝴蝶结" },
-  { id: "starCharm", label: "小星星" },
-  { id: "fishPin", label: "小鱼徽章" },
-  { id: "heartSpark", label: "爱心光点" },
-];
-
-const defaultAccessories: Record<AccessoryId, AccessoryPlacement> = {
-  starCrown: { x: 50, y: 18, scale: 1, visible: false },
-  moonNecklace: { x: 50, y: 72, scale: 1, visible: false },
-  explorerHat: { x: 54, y: 20, scale: 1, visible: false },
-  trustBow: { x: 30, y: 42, scale: 0.9, visible: false },
-  starCharm: { x: 74, y: 30, scale: 0.72, visible: false },
-  fishPin: { x: 70, y: 62, scale: 0.76, visible: false },
-  heartSpark: { x: 26, y: 34, scale: 0.72, visible: false },
-};
 
 const demoCoreAnswers: Record<number, number | "unknown"> = {
   1: 5, 2: 4, 3: 4, 4: 5, 5: 4, 6: 4, 7: 3, 8: 2,
@@ -886,105 +868,6 @@ function RadarChart({ scores }: { scores: Record<DimensionId, number | null> }) 
   );
 }
 
-function AccessoryIcon({ id }: { id: AccessoryId }) {
-  if (id === "starCrown") {
-    return (
-      <svg viewBox="0 0 64 44" aria-hidden="true" shapeRendering="crispEdges">
-        <rect x="8" y="24" width="48" height="12" fill="#f3b83f" />
-        <rect x="12" y="18" width="8" height="8" fill="#ffd96a" />
-        <rect x="28" y="8" width="8" height="20" fill="#ffd96a" />
-        <rect x="44" y="18" width="8" height="8" fill="#ffd96a" />
-        <rect x="8" y="34" width="48" height="4" fill="#8b5a24" />
-        <rect x="30" y="14" width="4" height="4" fill="#fff3b0" />
-        <rect x="16" y="26" width="6" height="6" fill="#c83f46" />
-        <rect x="42" y="26" width="6" height="6" fill="#3a8f6a" />
-      </svg>
-    );
-  }
-
-  if (id === "moonNecklace") {
-    return (
-      <svg viewBox="0 0 72 42" aria-hidden="true" shapeRendering="crispEdges">
-        <rect x="8" y="8" width="8" height="8" fill="#2f7b67" />
-        <rect x="16" y="14" width="8" height="8" fill="#2f7b67" />
-        <rect x="24" y="18" width="8" height="8" fill="#2f7b67" />
-        <rect x="40" y="18" width="8" height="8" fill="#2f7b67" />
-        <rect x="48" y="14" width="8" height="8" fill="#2f7b67" />
-        <rect x="56" y="8" width="8" height="8" fill="#2f7b67" />
-        <rect x="32" y="20" width="8" height="8" fill="#f4c44e" />
-        <rect x="36" y="24" width="8" height="8" fill="#f4c44e" />
-        <rect x="40" y="20" width="6" height="6" fill="#ffe7a2" />
-      </svg>
-    );
-  }
-
-  if (id === "explorerHat") {
-    return (
-      <svg viewBox="0 0 72 48" aria-hidden="true" shapeRendering="crispEdges">
-        <rect x="14" y="28" width="44" height="8" fill="#7a4f23" />
-        <rect x="22" y="16" width="28" height="16" fill="#c58a3d" />
-        <rect x="26" y="10" width="20" height="8" fill="#d9a55a" />
-        <rect x="14" y="36" width="44" height="4" fill="#4b2a11" />
-        <rect x="22" y="28" width="28" height="4" fill="#2f7b67" />
-        <rect x="48" y="12" width="8" height="6" fill="#3a8f6a" />
-        <rect x="56" y="8" width="6" height="6" fill="#77b66e" />
-      </svg>
-    );
-  }
-
-  if (id === "trustBow") {
-    return (
-      <svg viewBox="0 0 60 44" aria-hidden="true" shapeRendering="crispEdges">
-        <rect x="8" y="14" width="16" height="16" fill="#ef8f72" />
-        <rect x="36" y="14" width="16" height="16" fill="#ef8f72" />
-        <rect x="24" y="18" width="12" height="12" fill="#c83f46" />
-        <rect x="12" y="18" width="8" height="8" fill="#ffc0af" />
-        <rect x="40" y="18" width="8" height="8" fill="#ffc0af" />
-        <rect x="26" y="20" width="8" height="8" fill="#7e1f2a" />
-      </svg>
-    );
-  }
-
-  if (id === "starCharm") {
-    return (
-      <svg viewBox="0 0 48 48" aria-hidden="true" shapeRendering="crispEdges">
-        <rect x="20" y="4" width="8" height="12" fill="#ffd36e" />
-        <rect x="20" y="32" width="8" height="12" fill="#ffd36e" />
-        <rect x="4" y="20" width="12" height="8" fill="#ffd36e" />
-        <rect x="32" y="20" width="12" height="8" fill="#ffd36e" />
-        <rect x="16" y="16" width="16" height="16" fill="#f3b83f" />
-        <rect x="20" y="18" width="6" height="6" fill="#fff3b0" />
-        <rect x="16" y="32" width="8" height="6" fill="#8b5a24" />
-      </svg>
-    );
-  }
-
-  if (id === "fishPin") {
-    return (
-      <svg viewBox="0 0 58 42" aria-hidden="true" shapeRendering="crispEdges">
-        <rect x="12" y="14" width="28" height="16" fill="#6fb7b1" />
-        <rect x="40" y="10" width="8" height="8" fill="#3a8f6a" />
-        <rect x="40" y="26" width="8" height="8" fill="#3a8f6a" />
-        <rect x="18" y="18" width="6" height="6" fill="#10172a" />
-        <rect x="28" y="10" width="8" height="8" fill="#8fd0c9" />
-        <rect x="28" y="26" width="8" height="8" fill="#8fd0c9" />
-        <rect x="8" y="18" width="6" height="8" fill="#d7b46a" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 60 44" aria-hidden="true" shapeRendering="crispEdges">
-      <rect x="20" y="10" width="20" height="20" fill="#ef6f72" />
-      <rect x="14" y="16" width="8" height="8" fill="#ef6f72" />
-      <rect x="38" y="16" width="8" height="8" fill="#ef6f72" />
-      <rect x="24" y="14" width="8" height="8" fill="#ffc0af" />
-      <rect x="24" y="30" width="12" height="8" fill="#c83f46" />
-      <rect x="44" y="8" width="6" height="6" fill="#ffd36e" />
-    </svg>
-  );
-}
-
 export default function Home() {
   const [authorized, setAuthorized] = useState(false);
   const [accessCode, setAccessCode] = useState("");
@@ -1023,6 +906,8 @@ export default function Home() {
     : screen === "test"
       ? ((questionIndex + 1) / testItems.length) * 100
       : 100;
+  const activeAccessoryMeta = accessoryCatalog.find((item) => item.id === activeAccessory) ?? accessoryCatalog[0];
+  const activeAccessoryColors = accessories[activeAccessory]?.colors ?? activeAccessoryMeta.defaultColors;
 
   const result = useMemo(() => {
     const scores = {} as Record<DimensionId, number | null>;
@@ -1230,7 +1115,32 @@ export default function Home() {
       [activeAccessory]: {
         ...current[activeAccessory],
         visible: true,
-        scale: clamp(current[activeAccessory].scale + delta, 0.65, 1.45),
+        scale: clamp(current[activeAccessory].scale + delta, 0.55, 1.75),
+      },
+    }));
+  }
+
+  function updateActiveAccessoryColor(slot: AccessoryColorSlot, color: string) {
+    setAccessories((current) => ({
+      ...current,
+      [activeAccessory]: {
+        ...current[activeAccessory],
+        visible: true,
+        colors: {
+          ...current[activeAccessory].colors,
+          [slot]: color,
+        },
+      },
+    }));
+  }
+
+  function applyAccessoryPalette(colors: AccessoryPlacement["colors"]) {
+    setAccessories((current) => ({
+      ...current,
+      [activeAccessory]: {
+        ...current[activeAccessory],
+        visible: true,
+        colors,
       },
     }));
   }
@@ -1591,7 +1501,7 @@ export default function Home() {
                           className={`accessory-sticker ${activeAccessory === id ? "active" : ""}`}
                           role="button"
                           tabIndex={0}
-                          aria-label={`移动${accessoryCatalog.find((item) => item.id === id)?.label}`}
+                          aria-label={`移动${getAccessoryLabel(id)}`}
                           style={{
                             left: `${placement.x}%`,
                             top: `${placement.y}%`,
@@ -1602,7 +1512,7 @@ export default function Home() {
                           onPointerUp={endAccessoryDrag}
                           onPointerCancel={endAccessoryDrag}
                         >
-                          <AccessoryIcon id={id} />
+                          <AccessoryIcon id={id} colors={placement.colors} />
                         </div>
                       );
                     })}
@@ -1709,6 +1619,17 @@ export default function Home() {
                   <strong>装扮像素猫</strong>
                   <span>点一下添加，再拖到猫猫身上</span>
                 </div>
+                <div className={`result-photo-prompt ${photo ? "ready" : "missing"}`}>
+                  <div>
+                    <strong>{photo ? "已选择猫咪参考图" : "请先上传猫咪正面照"}</strong>
+                    <p>{photo ? "重新上传会覆盖档案页照片，并用于下一次 AI 像素猫生成。" : "AI 会根据这张照片提取猫咪主体、摆正头像并生成像素风底图。"}</p>
+                  </div>
+                  <label className="secondary-button">
+                    <Upload size={16} />
+                    {photo ? "更换照片" : "上传猫咪照片"}
+                    <input type="file" accept="image/*" onChange={handlePhoto} />
+                  </label>
+                </div>
                 <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
                   <Sparkles size={17} />
                   {imageGenerationStatus === "loading" ? "正在生成像素猫" : generatedCatImage ? "重新生成像素猫底图" : "生成像素猫底图"}
@@ -1720,15 +1641,47 @@ export default function Home() {
                       key={item.id}
                       className={accessories[item.id].visible ? "selected" : ""}
                       onClick={() => toggleAccessory(item.id)}
+                      title={`${item.group} · ${item.label}`}
                     >
-                      <AccessoryIcon id={item.id} />
-                      <span>{item.label}</span>
+                      <AccessoryIcon id={item.id} colors={accessories[item.id].colors} />
+                      <span>
+                        <b>{item.label}</b>
+                        <small>{item.group}</small>
+                      </span>
                     </button>
                   ))}
                 </div>
+                <div className="accessory-color-panel">
+                  <div className="color-panel-head">
+                    <strong>{activeAccessoryMeta.label}</strong>
+                    <span>{activeAccessoryMeta.group}</span>
+                  </div>
+                  <div className="color-slot-grid">
+                    {accessoryColorSlots.map((slot) => (
+                      <label key={slot.id}>
+                        <span>{slot.label}</span>
+                        <input
+                          type="color"
+                          value={activeAccessoryColors[slot.id]}
+                          onChange={(event) => updateActiveAccessoryColor(slot.id, event.target.value)}
+                        />
+                        <code>{activeAccessoryColors[slot.id]}</code>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="palette-row">
+                    {accessoryColorPalettes.map((palette) => (
+                      <button key={palette.label} type="button" onClick={() => applyAccessoryPalette(palette.colors)} title={`使用${palette.label}色`}>
+                        <span style={{ backgroundColor: palette.colors.primary }} />
+                        <span style={{ backgroundColor: palette.colors.secondary }} />
+                        <span style={{ backgroundColor: palette.colors.accent }} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="accessory-size-row">
                   <button onClick={() => resizeActiveAccessory(-0.1)}>缩小</button>
-                  <span>{accessoryCatalog.find((item) => item.id === activeAccessory)?.label}</span>
+                  <span>{activeAccessoryMeta.label}</span>
                   <button onClick={() => resizeActiveAccessory(0.1)}>放大</button>
                   <button onClick={resetAccessories}>重置</button>
                 </div>
@@ -1770,7 +1723,7 @@ export default function Home() {
                         className={`accessory-sticker editor-sticker ${activeAccessory === id ? "active" : ""}`}
                         role="button"
                         tabIndex={0}
-                        aria-label={`移动${accessoryCatalog.find((item) => item.id === id)?.label}`}
+                        aria-label={`移动${getAccessoryLabel(id)}`}
                         style={{
                           left: `${placement.x}%`,
                           top: `${placement.y}%`,
@@ -1781,13 +1734,24 @@ export default function Home() {
                         onPointerUp={endAccessoryDrag}
                         onPointerCancel={endAccessoryDrag}
                       >
-                        <AccessoryIcon id={id} />
+                        <AccessoryIcon id={id} colors={placement.colors} />
                       </div>
                     );
                   })}
                 </div>
 
                 <aside className="editor-tools">
+                  <div className={`result-photo-prompt ${photo ? "ready" : "missing"}`}>
+                    <div>
+                      <strong>{photo ? "当前参考图已就绪" : "生成前请上传猫咪正面照"}</strong>
+                      <p>{photo ? "如果换照片，新的照片会覆盖档案页图片，并用于重新生成像素猫。" : "建议选择脸部清楚、光线稳定的猫咪正面照。"}</p>
+                    </div>
+                    <label className="secondary-button">
+                      <Upload size={16} />
+                      {photo ? "更换照片" : "上传照片"}
+                      <input type="file" accept="image/*" onChange={handlePhoto} />
+                    </label>
+                  </div>
                   <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
                     <Sparkles size={17} />
                     {imageGenerationStatus === "loading" ? "正在生成底图" : "生成像素猫底图"}
@@ -1800,15 +1764,47 @@ export default function Home() {
                         key={item.id}
                         className={accessories[item.id].visible ? "selected" : ""}
                         onClick={() => toggleAccessory(item.id)}
+                        title={`${item.group} · ${item.label}`}
                       >
-                        <AccessoryIcon id={item.id} />
-                        <span>{item.label}</span>
+                        <AccessoryIcon id={item.id} colors={accessories[item.id].colors} />
+                        <span>
+                          <b>{item.label}</b>
+                          <small>{item.group}</small>
+                        </span>
                       </button>
                     ))}
                   </div>
+                  <div className="accessory-color-panel">
+                    <div className="color-panel-head">
+                      <strong>{activeAccessoryMeta.label}</strong>
+                      <span>{activeAccessoryMeta.group}</span>
+                    </div>
+                    <div className="color-slot-grid">
+                      {accessoryColorSlots.map((slot) => (
+                        <label key={slot.id}>
+                          <span>{slot.label}</span>
+                          <input
+                            type="color"
+                            value={activeAccessoryColors[slot.id]}
+                            onChange={(event) => updateActiveAccessoryColor(slot.id, event.target.value)}
+                          />
+                          <code>{activeAccessoryColors[slot.id]}</code>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="palette-row">
+                      {accessoryColorPalettes.map((palette) => (
+                        <button key={palette.label} type="button" onClick={() => applyAccessoryPalette(palette.colors)} title={`使用${palette.label}色`}>
+                          <span style={{ backgroundColor: palette.colors.primary }} />
+                          <span style={{ backgroundColor: palette.colors.secondary }} />
+                          <span style={{ backgroundColor: palette.colors.accent }} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="accessory-size-row editor-size-row">
                     <button onClick={() => resizeActiveAccessory(-0.1)}>缩小</button>
-                    <span>{accessoryCatalog.find((item) => item.id === activeAccessory)?.label}</span>
+                    <span>{activeAccessoryMeta.label}</span>
                     <button onClick={() => resizeActiveAccessory(0.1)}>放大</button>
                     <button onClick={resetAccessories}>重置</button>
                   </div>
