@@ -15,7 +15,7 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { buildAppCatReport } from "./report/report-adapter";
 
 type DimensionId =
@@ -56,7 +56,30 @@ type TestItem =
   | { kind: "strategy"; question: ChoiceQuestion }
   | { kind: "safety"; id: number; text: string };
 
+type AccessoryId = "starCrown" | "moonNecklace" | "explorerHat" | "trustBow";
+
+type AccessoryPlacement = {
+  x: number;
+  y: number;
+  scale: number;
+  visible: boolean;
+};
+
 const ACCESS_CODES = ["CATLAB2026", "MEOW2026", "猫格观测"];
+
+const accessoryCatalog: Array<{ id: AccessoryId; label: string }> = [
+  { id: "starCrown", label: "星星冠" },
+  { id: "moonNecklace", label: "月亮项链" },
+  { id: "explorerHat", label: "探索帽" },
+  { id: "trustBow", label: "信任蝴蝶结" },
+];
+
+const defaultAccessories: Record<AccessoryId, AccessoryPlacement> = {
+  starCrown: { x: 50, y: 18, scale: 1, visible: true },
+  moonNecklace: { x: 50, y: 72, scale: 1, visible: true },
+  explorerHat: { x: 54, y: 20, scale: 1, visible: false },
+  trustBow: { x: 30, y: 42, scale: 0.9, visible: false },
+};
 
 const dimensions: Record<
   DimensionId,
@@ -769,6 +792,10 @@ function makeId() {
   return `CAT-${new Date().getFullYear()}-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function RadarChart({ scores }: { scores: Record<DimensionId, number | null> }) {
   const ids = dimensionOrder;
   const size = 300;
@@ -808,6 +835,64 @@ function RadarChart({ scores }: { scores: Record<DimensionId, number | null> }) 
   );
 }
 
+function AccessoryIcon({ id }: { id: AccessoryId }) {
+  if (id === "starCrown") {
+    return (
+      <svg viewBox="0 0 64 44" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="8" y="24" width="48" height="12" fill="#f3b83f" />
+        <rect x="12" y="18" width="8" height="8" fill="#ffd96a" />
+        <rect x="28" y="8" width="8" height="20" fill="#ffd96a" />
+        <rect x="44" y="18" width="8" height="8" fill="#ffd96a" />
+        <rect x="8" y="34" width="48" height="4" fill="#8b5a24" />
+        <rect x="30" y="14" width="4" height="4" fill="#fff3b0" />
+        <rect x="16" y="26" width="6" height="6" fill="#c83f46" />
+        <rect x="42" y="26" width="6" height="6" fill="#3a8f6a" />
+      </svg>
+    );
+  }
+
+  if (id === "moonNecklace") {
+    return (
+      <svg viewBox="0 0 72 42" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="8" y="8" width="8" height="8" fill="#2f7b67" />
+        <rect x="16" y="14" width="8" height="8" fill="#2f7b67" />
+        <rect x="24" y="18" width="8" height="8" fill="#2f7b67" />
+        <rect x="40" y="18" width="8" height="8" fill="#2f7b67" />
+        <rect x="48" y="14" width="8" height="8" fill="#2f7b67" />
+        <rect x="56" y="8" width="8" height="8" fill="#2f7b67" />
+        <rect x="32" y="20" width="8" height="8" fill="#f4c44e" />
+        <rect x="36" y="24" width="8" height="8" fill="#f4c44e" />
+        <rect x="40" y="20" width="6" height="6" fill="#ffe7a2" />
+      </svg>
+    );
+  }
+
+  if (id === "explorerHat") {
+    return (
+      <svg viewBox="0 0 72 48" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="14" y="28" width="44" height="8" fill="#7a4f23" />
+        <rect x="22" y="16" width="28" height="16" fill="#c58a3d" />
+        <rect x="26" y="10" width="20" height="8" fill="#d9a55a" />
+        <rect x="14" y="36" width="44" height="4" fill="#4b2a11" />
+        <rect x="22" y="28" width="28" height="4" fill="#2f7b67" />
+        <rect x="48" y="12" width="8" height="6" fill="#3a8f6a" />
+        <rect x="56" y="8" width="6" height="6" fill="#77b66e" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 60 44" aria-hidden="true" shapeRendering="crispEdges">
+      <rect x="8" y="14" width="16" height="16" fill="#ef8f72" />
+      <rect x="36" y="14" width="16" height="16" fill="#ef8f72" />
+      <rect x="24" y="18" width="12" height="12" fill="#c83f46" />
+      <rect x="12" y="18" width="8" height="8" fill="#ffc0af" />
+      <rect x="40" y="18" width="8" height="8" fill="#ffc0af" />
+      <rect x="26" y="20" width="8" height="8" fill="#7e1f2a" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [authorized, setAuthorized] = useState(false);
   const [accessCode, setAccessCode] = useState("");
@@ -827,7 +912,11 @@ export default function Home() {
   const [strategyAnswers, setStrategyAnswers] = useState<Record<number, string>>({});
   const [safetyFlags, setSafetyFlags] = useState<Record<number, boolean>>({});
   const [reportId, setReportId] = useState(makeId);
+  const [accessories, setAccessories] = useState<Record<AccessoryId, AccessoryPlacement>>(defaultAccessories);
+  const [activeAccessory, setActiveAccessory] = useState<AccessoryId>("starCrown");
+  const [draggingAccessory, setDraggingAccessory] = useState<AccessoryId | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const posterPhotoRef = useRef<HTMLDivElement>(null);
 
   const catName = profile.name.trim() || "它";
   const currentItem = testItems[questionIndex];
@@ -901,6 +990,61 @@ export default function Home() {
     link.download = `${catName}-猫格观测卡.png`;
     link.href = image;
     link.click();
+  }
+
+  function moveAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId) {
+    const rect = posterPhotoRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 4, 96);
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 4, 96);
+    setAccessories((current) => ({
+      ...current,
+      [id]: { ...current[id], x, y, visible: true },
+    }));
+  }
+
+  function beginAccessoryDrag(event: PointerEvent<HTMLElement>, id: AccessoryId) {
+    event.preventDefault();
+    setActiveAccessory(id);
+    setDraggingAccessory(id);
+    moveAccessory(event, id);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function dragAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId) {
+    if (draggingAccessory !== id) return;
+    moveAccessory(event, id);
+  }
+
+  function endAccessoryDrag(event: PointerEvent<HTMLElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDraggingAccessory(null);
+  }
+
+  function toggleAccessory(id: AccessoryId) {
+    setActiveAccessory(id);
+    setAccessories((current) => ({
+      ...current,
+      [id]: { ...current[id], visible: !current[id].visible },
+    }));
+  }
+
+  function resizeActiveAccessory(delta: number) {
+    setAccessories((current) => ({
+      ...current,
+      [activeAccessory]: {
+        ...current[activeAccessory],
+        visible: true,
+        scale: clamp(current[activeAccessory].scale + delta, 0.65, 1.45),
+      },
+    }));
+  }
+
+  function resetAccessories() {
+    setAccessories(defaultAccessories);
+    setActiveAccessory("starCrown");
   }
 
   function advanceAfterAnswer() {
@@ -1221,8 +1365,32 @@ export default function Home() {
                 </header>
 
                 <section className="poster-profile-grid">
-                  <div className="poster-photo">
+                  <div className="poster-photo accessory-stage" ref={posterPhotoRef}>
                     {photo ? <img src={photo} alt={`${catName}的照片`} /> : <Camera size={52} />}
+                    {accessoryCatalog.map(({ id }) => {
+                      const placement = accessories[id];
+                      if (!placement.visible) return null;
+                      return (
+                        <div
+                          key={id}
+                          className={`accessory-sticker ${activeAccessory === id ? "active" : ""}`}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`移动${accessoryCatalog.find((item) => item.id === id)?.label}`}
+                          style={{
+                            left: `${placement.x}%`,
+                            top: `${placement.y}%`,
+                            transform: `translate(-50%, -50%) scale(${placement.scale})`,
+                          }}
+                          onPointerDown={(event) => beginAccessoryDrag(event, id)}
+                          onPointerMove={(event) => dragAccessory(event, id)}
+                          onPointerUp={endAccessoryDrag}
+                          onPointerCancel={endAccessoryDrag}
+                        >
+                          <AccessoryIcon id={id} />
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="poster-profile-card">
                     <div className="poster-meta">
@@ -1321,6 +1489,30 @@ export default function Home() {
                 <Download size={18} />
                 生成最终分享图
               </button>
+              <div className="accessory-panel">
+                <div className="accessory-panel-head">
+                  <strong>装扮像素猫</strong>
+                  <span>点选显示，拖到猫猫身上</span>
+                </div>
+                <div className="accessory-toolbar">
+                  {accessoryCatalog.map((item) => (
+                    <button
+                      key={item.id}
+                      className={accessories[item.id].visible ? "selected" : ""}
+                      onClick={() => toggleAccessory(item.id)}
+                    >
+                      <AccessoryIcon id={item.id} />
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="accessory-size-row">
+                  <button onClick={() => resizeActiveAccessory(-0.1)}>缩小</button>
+                  <span>{accessoryCatalog.find((item) => item.id === activeAccessory)?.label}</span>
+                  <button onClick={() => resizeActiveAccessory(0.1)}>放大</button>
+                  <button onClick={resetAccessories}>重置</button>
+                </div>
+              </div>
               <button className="secondary-button full" onClick={resetTest}>
                 <RotateCcw size={17} />
                 重新测试
