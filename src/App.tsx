@@ -10,10 +10,12 @@ import {
   FileText,
   LockKeyhole,
   Moon,
+  Pencil,
   RotateCcw,
   ShieldCheck,
   Sparkles,
   Upload,
+  X,
 } from "lucide-react";
 import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPixelCatSvgDataUrl } from "./pixel-cat";
@@ -57,7 +59,7 @@ type TestItem =
   | { kind: "strategy"; question: ChoiceQuestion }
   | { kind: "safety"; id: number; text: string };
 
-type AccessoryId = "starCrown" | "moonNecklace" | "explorerHat" | "trustBow";
+type AccessoryId = "starCrown" | "moonNecklace" | "explorerHat" | "trustBow" | "starCharm" | "fishPin" | "heartSpark";
 
 type AccessoryPlacement = {
   x: number;
@@ -73,6 +75,9 @@ const accessoryCatalog: Array<{ id: AccessoryId; label: string }> = [
   { id: "moonNecklace", label: "月亮项链" },
   { id: "explorerHat", label: "探索帽" },
   { id: "trustBow", label: "信任蝴蝶结" },
+  { id: "starCharm", label: "小星星" },
+  { id: "fishPin", label: "小鱼徽章" },
+  { id: "heartSpark", label: "爱心光点" },
 ];
 
 const defaultAccessories: Record<AccessoryId, AccessoryPlacement> = {
@@ -80,6 +85,9 @@ const defaultAccessories: Record<AccessoryId, AccessoryPlacement> = {
   moonNecklace: { x: 50, y: 72, scale: 1, visible: true },
   explorerHat: { x: 54, y: 20, scale: 1, visible: false },
   trustBow: { x: 30, y: 42, scale: 0.9, visible: false },
+  starCharm: { x: 74, y: 30, scale: 0.72, visible: false },
+  fishPin: { x: 70, y: 62, scale: 0.76, visible: false },
+  heartSpark: { x: 26, y: 34, scale: 0.72, visible: false },
 };
 
 const demoCoreAnswers: Record<number, number | "unknown"> = {
@@ -924,14 +932,55 @@ function AccessoryIcon({ id }: { id: AccessoryId }) {
     );
   }
 
+  if (id === "trustBow") {
+    return (
+      <svg viewBox="0 0 60 44" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="8" y="14" width="16" height="16" fill="#ef8f72" />
+        <rect x="36" y="14" width="16" height="16" fill="#ef8f72" />
+        <rect x="24" y="18" width="12" height="12" fill="#c83f46" />
+        <rect x="12" y="18" width="8" height="8" fill="#ffc0af" />
+        <rect x="40" y="18" width="8" height="8" fill="#ffc0af" />
+        <rect x="26" y="20" width="8" height="8" fill="#7e1f2a" />
+      </svg>
+    );
+  }
+
+  if (id === "starCharm") {
+    return (
+      <svg viewBox="0 0 48 48" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="20" y="4" width="8" height="12" fill="#ffd36e" />
+        <rect x="20" y="32" width="8" height="12" fill="#ffd36e" />
+        <rect x="4" y="20" width="12" height="8" fill="#ffd36e" />
+        <rect x="32" y="20" width="12" height="8" fill="#ffd36e" />
+        <rect x="16" y="16" width="16" height="16" fill="#f3b83f" />
+        <rect x="20" y="18" width="6" height="6" fill="#fff3b0" />
+        <rect x="16" y="32" width="8" height="6" fill="#8b5a24" />
+      </svg>
+    );
+  }
+
+  if (id === "fishPin") {
+    return (
+      <svg viewBox="0 0 58 42" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="12" y="14" width="28" height="16" fill="#6fb7b1" />
+        <rect x="40" y="10" width="8" height="8" fill="#3a8f6a" />
+        <rect x="40" y="26" width="8" height="8" fill="#3a8f6a" />
+        <rect x="18" y="18" width="6" height="6" fill="#10172a" />
+        <rect x="28" y="10" width="8" height="8" fill="#8fd0c9" />
+        <rect x="28" y="26" width="8" height="8" fill="#8fd0c9" />
+        <rect x="8" y="18" width="6" height="8" fill="#d7b46a" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 60 44" aria-hidden="true" shapeRendering="crispEdges">
-      <rect x="8" y="14" width="16" height="16" fill="#ef8f72" />
-      <rect x="36" y="14" width="16" height="16" fill="#ef8f72" />
-      <rect x="24" y="18" width="12" height="12" fill="#c83f46" />
-      <rect x="12" y="18" width="8" height="8" fill="#ffc0af" />
-      <rect x="40" y="18" width="8" height="8" fill="#ffc0af" />
-      <rect x="26" y="20" width="8" height="8" fill="#7e1f2a" />
+      <rect x="20" y="10" width="20" height="20" fill="#ef6f72" />
+      <rect x="14" y="16" width="8" height="8" fill="#ef6f72" />
+      <rect x="38" y="16" width="8" height="8" fill="#ef6f72" />
+      <rect x="24" y="14" width="8" height="8" fill="#ffc0af" />
+      <rect x="24" y="30" width="12" height="8" fill="#c83f46" />
+      <rect x="44" y="8" width="6" height="6" fill="#ffd36e" />
     </svg>
   );
 }
@@ -961,8 +1010,10 @@ export default function Home() {
   const [accessories, setAccessories] = useState<Record<AccessoryId, AccessoryPlacement>>(defaultAccessories);
   const [activeAccessory, setActiveAccessory] = useState<AccessoryId>("starCrown");
   const [draggingAccessory, setDraggingAccessory] = useState<AccessoryId | null>(null);
+  const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const posterPhotoRef = useRef<HTMLDivElement>(null);
+  const editorPhotoRef = useRef<HTMLDivElement>(null);
 
   const catName = profile.name.trim() || "它";
   const currentItem = testItems[questionIndex];
@@ -1101,15 +1152,34 @@ export default function Home() {
 
   async function downloadCard() {
     if (!cardRef.current) return;
-    const image = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: "#10172a" });
+    const image = await toPng(cardRef.current, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: "#10172a",
+      filter: (node) => !(node instanceof HTMLElement && node.dataset.exportHidden === "true"),
+    });
     const link = document.createElement("a");
     link.download = `${catName}-猫格观测卡.png`;
     link.href = image;
     link.click();
   }
 
-  function moveAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId) {
-    const rect = posterPhotoRef.current?.getBoundingClientRect();
+  function openImageEditor() {
+    if (!report) return;
+    if (!posterImage) {
+      setGeneratedCatImage(createPixelCatSvgDataUrl({
+        name: catName,
+        title: report.personality.mainTitle,
+        scores: result.scores,
+      }));
+      setImageGenerationStatus("ready");
+      setImageGenerationNote("已生成本地像素猫预览图，可以在编辑器里继续装饰。");
+    }
+    setIsImageEditorOpen(true);
+  }
+
+  function moveAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId, stage: HTMLDivElement | null) {
+    const rect = stage?.getBoundingClientRect();
     if (!rect) return;
     const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 4, 96);
     const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 4, 96);
@@ -1119,17 +1189,18 @@ export default function Home() {
     }));
   }
 
-  function beginAccessoryDrag(event: PointerEvent<HTMLElement>, id: AccessoryId) {
+  function beginAccessoryDrag(event: PointerEvent<HTMLElement>, id: AccessoryId, stage: HTMLDivElement | null) {
     event.preventDefault();
+    event.stopPropagation();
     setActiveAccessory(id);
     setDraggingAccessory(id);
-    moveAccessory(event, id);
+    moveAccessory(event, id, stage);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function dragAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId) {
+  function dragAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId, stage: HTMLDivElement | null) {
     if (draggingAccessory !== id) return;
-    moveAccessory(event, id);
+    moveAccessory(event, id, stage);
   }
 
   function endAccessoryDrag(event: PointerEvent<HTMLElement>) {
@@ -1161,6 +1232,11 @@ export default function Home() {
   function resetAccessories() {
     setAccessories(defaultAccessories);
     setActiveAccessory("starCrown");
+  }
+
+  function placeActiveAccessory(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null) {
+    if (event.target !== event.currentTarget) return;
+    moveAccessory(event, activeAccessory, stage);
   }
 
   function advanceAfterAnswer() {
@@ -1490,7 +1566,15 @@ export default function Home() {
                 </header>
 
                 <section className="poster-profile-grid">
-                  <div className="poster-photo accessory-stage" ref={posterPhotoRef}>
+                  <div
+                    className="poster-photo accessory-stage"
+                    ref={posterPhotoRef}
+                    onPointerDown={(event) => placeActiveAccessory(event, posterPhotoRef.current)}
+                  >
+                    <button className="poster-edit-button" onClick={openImageEditor} data-export-hidden="true" type="button">
+                      <Pencil size={14} />
+                      编辑
+                    </button>
                     {posterImage ? <img src={posterImage} alt={`${catName}的像素猫底图`} /> : <Camera size={52} />}
                     {accessoryCatalog.map(({ id }) => {
                       const placement = accessories[id];
@@ -1507,8 +1591,8 @@ export default function Home() {
                             top: `${placement.y}%`,
                             transform: `translate(-50%, -50%) scale(${placement.scale})`,
                           }}
-                          onPointerDown={(event) => beginAccessoryDrag(event, id)}
-                          onPointerMove={(event) => dragAccessory(event, id)}
+                          onPointerDown={(event) => beginAccessoryDrag(event, id, posterPhotoRef.current)}
+                          onPointerMove={(event) => dragAccessory(event, id, posterPhotoRef.current)}
                           onPointerUp={endAccessoryDrag}
                           onPointerCancel={endAccessoryDrag}
                         >
@@ -1649,6 +1733,85 @@ export default function Home() {
               </button>
             </aside>
           </section>
+        )}
+
+        {screen === "result" && report && isImageEditorOpen && (
+          <div className="image-editor-backdrop" role="dialog" aria-modal="true" aria-label="编辑像素猫图片">
+            <section className="image-editor-panel">
+              <header className="image-editor-header">
+                <div>
+                  <p className="eyebrow">Pixel Cat Studio</p>
+                  <h2>编辑{catName}的像素猫</h2>
+                </div>
+                <button className="icon-button" onClick={() => setIsImageEditorOpen(false)} aria-label="关闭编辑器">
+                  <X size={18} />
+                </button>
+              </header>
+
+              <div className="image-editor-body">
+                <div
+                  className="editor-stage accessory-stage"
+                  ref={editorPhotoRef}
+                  onPointerDown={(event) => placeActiveAccessory(event, editorPhotoRef.current)}
+                >
+                  {posterImage ? <img src={posterImage} alt={`${catName}的像素猫编辑底图`} /> : <Camera size={72} />}
+                  {accessoryCatalog.map(({ id }) => {
+                    const placement = accessories[id];
+                    if (!placement.visible) return null;
+                    return (
+                      <div
+                        key={id}
+                        className={`accessory-sticker editor-sticker ${activeAccessory === id ? "active" : ""}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`移动${accessoryCatalog.find((item) => item.id === id)?.label}`}
+                        style={{
+                          left: `${placement.x}%`,
+                          top: `${placement.y}%`,
+                          transform: `translate(-50%, -50%) scale(${placement.scale})`,
+                        }}
+                        onPointerDown={(event) => beginAccessoryDrag(event, id, editorPhotoRef.current)}
+                        onPointerMove={(event) => dragAccessory(event, id, editorPhotoRef.current)}
+                        onPointerUp={endAccessoryDrag}
+                        onPointerCancel={endAccessoryDrag}
+                      >
+                        <AccessoryIcon id={id} />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <aside className="editor-tools">
+                  <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
+                    <Sparkles size={17} />
+                    {imageGenerationStatus === "loading" ? "正在生成底图" : "生成像素猫底图"}
+                  </button>
+                  {imageGenerationNote && <p className={`image-gen-note ${imageGenerationStatus}`}>{imageGenerationNote}</p>}
+                  <div className="accessory-toolbar editor-accessory-toolbar">
+                    {accessoryCatalog.map((item) => (
+                      <button
+                        key={item.id}
+                        className={accessories[item.id].visible ? "selected" : ""}
+                        onClick={() => toggleAccessory(item.id)}
+                      >
+                        <AccessoryIcon id={item.id} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="accessory-size-row editor-size-row">
+                    <button onClick={() => resizeActiveAccessory(-0.1)}>缩小</button>
+                    <span>{accessoryCatalog.find((item) => item.id === activeAccessory)?.label}</span>
+                    <button onClick={() => resizeActiveAccessory(0.1)}>放大</button>
+                    <button onClick={resetAccessories}>重置</button>
+                  </div>
+                  <button className="primary-button full editor-done-button" onClick={() => setIsImageEditorOpen(false)}>
+                    完成编辑
+                  </button>
+                </aside>
+              </div>
+            </section>
+          </div>
         )}
 
         {screen === "result" && !report && (
