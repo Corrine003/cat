@@ -1,5 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { createPixelCatSvgDataUrl } from "../../src/pixel-cat";
 
 type GenerateCatImageRequest = {
@@ -21,6 +23,11 @@ type ImageGenerationRecord = {
   prompt?: string;
   generatedAt?: string;
   updatedAt: string;
+};
+
+type GenerationStore = {
+  get: (key: string) => Promise<unknown>;
+  set: (key: string, value: ImageGenerationRecord) => Promise<void>;
 };
 
 const jsonHeaders = {
@@ -80,7 +87,7 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  const store = getStore("cat-image-generations");
+  const store = createGenerationStore();
   const recordKey = `auth-code:${authCode}`;
   const existingRecord = await getGenerationRecord(store, recordKey, authCode);
 
@@ -101,7 +108,7 @@ export const handler: Handler = async (event) => {
   try {
     const generatedImage = await callArkImageGeneration(payload, prompt);
     if (generatedImage) {
-      await store.setJSON(recordKey, {
+      await store.set(recordKey, {
         ...existingRecord,
         imageCreditsUsed: 1,
         imageUrl: generatedImage,
@@ -134,7 +141,7 @@ export const handler: Handler = async (event) => {
   });
 
   if (process.env.CONSUME_LOCAL_PREVIEW_CREDIT === "true") {
-    await store.setJSON(recordKey, {
+    await store.set(recordKey, {
       ...existingRecord,
       imageCreditsUsed: 1,
       imageUrl: previewImage,
@@ -174,11 +181,11 @@ function normalizeAuthCode(code: string | undefined) {
 }
 
 async function getGenerationRecord(
-  store: ReturnType<typeof getStore>,
+  store: GenerationStore,
   key: string,
   code: string,
 ): Promise<ImageGenerationRecord> {
-  const stored = await store.get(key, { type: "json" });
+  const stored = await store.get(key);
   if (isGenerationRecord(stored)) return stored;
 
   return {
@@ -187,6 +194,40 @@ async function getGenerationRecord(
     imageCreditsUsed: 0,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function createGenerationStore(): GenerationStore {
+  try {
+    const blobStore = getStore("cat-image-generations");
+    return {
+      get: (key) => blobStore.get(key, { type: "json" }),
+      async set(key, value) {
+        await blobStore.setJSON(key, value);
+      },
+    };
+  } catch {
+    const filePath = path.join(process.cwd(), ".netlify", "local-blobs", "cat-image-generations.json");
+    return {
+      async get(key) {
+        const data = await readLocalStore(filePath);
+        return data[key];
+      },
+      async set(key, value) {
+        const data = await readLocalStore(filePath);
+        data[key] = value;
+        await mkdir(path.dirname(filePath), { recursive: true });
+        await writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
+      },
+    };
+  }
+}
+
+async function readLocalStore(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8")) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }
 
 function isGenerationRecord(value: unknown): value is ImageGenerationRecord {
