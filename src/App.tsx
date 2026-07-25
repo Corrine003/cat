@@ -1036,8 +1036,10 @@ export default function Home() {
         title: report.personality.mainTitle,
         scores: result.scores,
       }));
-      setImageGenerationStatus("ready");
-      setImageGenerationNote("已生成像素猫预览图。线上配置 AI 生图接口后，会根据猫咪照片生成专属像素猫。");
+      setImageGenerationStatus("error");
+      setImageGenerationNote(window.location.hostname === "localhost"
+        ? "当前是本地前端预览，未调用 AI 生图。请打开 Netlify 线上地址，或用 netlify dev 启动后端函数。"
+        : "AI 生图暂未成功，已显示本地预览图。请检查 Netlify 环境变量和函数日志。");
     }
   }
 

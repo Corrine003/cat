@@ -154,8 +154,8 @@ export const handler: Handler = async (event) => {
       remainingGenerations: process.env.CONSUME_LOCAL_PREVIEW_CREDIT === "true" ? 0 : 1,
       prompt,
       note: process.env.CONSUME_LOCAL_PREVIEW_CREDIT === "true"
-        ? "未配置 AI 生图接口，已返回本地预览图并消耗本授权码生图额度。"
-        : "未配置 AI 生图接口环境变量，已返回本地像素猫预览图，未消耗授权码生图额度。",
+        ? "未配置 AI 生图接口，未调用 AI，已返回本地预览图并消耗本授权码生图额度。"
+        : "未配置 AI 生图接口环境变量，未调用 AI，已返回本地像素猫预览图，未消耗授权码生图额度。",
     }),
   };
 };
