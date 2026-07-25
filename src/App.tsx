@@ -988,6 +988,7 @@ function AccessoryIcon({ id }: { id: AccessoryId }) {
 export default function Home() {
   const [authorized, setAuthorized] = useState(false);
   const [accessCode, setAccessCode] = useState("");
+  const [authorizedCode, setAuthorizedCode] = useState("");
   const [accessError, setAccessError] = useState("");
   const [screen, setScreen] = useState<Screen>("profile");
   const [questionIndex, setQuestionIndex] = useState(0);
@@ -1060,8 +1061,11 @@ export default function Home() {
   }, [coreAnswers, profile, relationshipAnswers, reportId, safetyFlags, strategyAnswers]);
 
   function authorize() {
-    if (ACCESS_CODES.includes(accessCode.trim())) {
+    const normalizedCode = accessCode.trim().toUpperCase();
+    const recognizedCodes = ACCESS_CODES.map((code) => code.toUpperCase());
+    if (recognizedCodes.includes(normalizedCode)) {
       setAuthorized(true);
+      setAuthorizedCode(normalizedCode);
       setAccessError("");
     } else {
       setAccessError("授权码暂未识别。可试用：CATLAB2026");
@@ -1070,6 +1074,7 @@ export default function Home() {
 
   function openDemoReport() {
     setAuthorized(true);
+    setAuthorizedCode("DEMO-PREVIEW");
     setProfile({
       name: "薄荷",
       age: "1岁3个月",
@@ -1124,6 +1129,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           catName,
+          authCode: authorizedCode || accessCode.trim(),
           scientificType: report.personality.scientificType,
           mainTitle: report.personality.mainTitle,
           coreJudgment: report.personality.coreJudgment,
@@ -1138,7 +1144,7 @@ export default function Home() {
 
       setGeneratedCatImage(data.imageUrl);
       setImageGenerationStatus("ready");
-      setImageGenerationNote(data.note || (data.provider === "jimeng" ? "已生成即梦像素猫底图。" : "已生成像素猫预览图。"));
+      setImageGenerationNote(data.note || (data.provider === "jimeng" ? "已生成即梦像素猫底图。本授权码已使用一次生图额度。" : "已生成像素猫预览图。"));
     } catch {
       setGeneratedCatImage(createPixelCatSvgDataUrl({
         name: catName,
