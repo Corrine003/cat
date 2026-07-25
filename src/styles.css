@@ -185,6 +185,10 @@ p {
   width: 100%;
 }
 
+.preview-button {
+  margin-top: 10px;
+}
+
 .app-shell {
   min-height: 100vh;
 }

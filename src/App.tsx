@@ -82,6 +82,48 @@ const defaultAccessories: Record<AccessoryId, AccessoryPlacement> = {
   trustBow: { x: 30, y: 42, scale: 0.9, visible: false },
 };
 
+const demoCoreAnswers: Record<number, number | "unknown"> = {
+  1: 5, 2: 4, 3: 4, 4: 5, 5: 4, 6: 4, 7: 3, 8: 2,
+  9: 5, 10: 4, 11: 5, 12: 4, 13: 5, 14: 5, 15: 1, 16: 1,
+  17: 4, 18: 4, 19: 3, 20: 3, 21: 4, 22: 5, 23: 3, 24: 3,
+  25: 3, 26: 3, 27: 4, 28: 3, 29: 4, 30: 3, 31: 3, 32: 3,
+  33: 5, 34: 5, 35: 5, 36: 4, 37: 4, 38: 5, 39: 2, 40: 3,
+  41: 4, 42: 4, 43: 4, 44: 4, 45: 4, 46: 4, 47: 2, 48: 2,
+};
+
+const demoRelationshipAnswers: Record<number, string> = {
+  49: "A",
+  50: "B",
+  51: "B",
+  52: "B",
+  53: "B",
+  54: "A",
+  55: "B",
+  56: "A",
+  57: "B",
+  58: "B",
+  59: "B",
+  60: "B",
+};
+
+const demoStrategyAnswers: Record<number, string> = {
+  61: "E",
+  62: "E",
+  63: "D",
+  64: "B",
+  65: "B",
+  66: "E",
+};
+
+const demoScores: Record<DimensionId, number | null> = {
+  perception: 78,
+  exploration: 86,
+  attachment: 64,
+  social: 58,
+  autonomy: 72,
+  stability: 76,
+};
+
 const dimensions: Record<
   DimensionId,
   {
@@ -975,6 +1017,34 @@ export default function Home() {
     }
   }
 
+  function openDemoReport() {
+    setAuthorized(true);
+    setProfile({
+      name: "薄荷",
+      age: "1岁3个月",
+      gender: "女孩",
+      arrival: "2025年春天",
+      family: "单猫家庭",
+    });
+    setCoreAnswers(demoCoreAnswers);
+    setRelationshipAnswers(demoRelationshipAnswers);
+    setStrategyAnswers(demoStrategyAnswers);
+    setSafetyFlags({});
+    setReportId("CAT-STAR-0001");
+    setPhoto("");
+    setGeneratedCatImage(createPixelCatSvgDataUrl({
+      name: "薄荷",
+      title: "先观察再出手的好奇侦探",
+      scores: demoScores,
+    }));
+    setImageGenerationStatus("ready");
+    setImageGenerationNote("已加载演示像素猫底图，可以直接拖动饰品看效果。");
+    setAccessories(defaultAccessories);
+    setActiveAccessory("starCrown");
+    setQuestionIndex(testItems.length - 1);
+    setScreen("result");
+  }
+
   function updateProfile(field: keyof Profile, value: string) {
     setProfile((current) => ({ ...current, [field]: value }));
   }
@@ -1203,6 +1273,10 @@ export default function Home() {
             <ShieldCheck size={18} />
             进入测试
           </button>
+          <button className="secondary-button full preview-button" onClick={openDemoReport}>
+            <Sparkles size={17} />
+            直接预览最终报告
+          </button>
           <p className="quiet-note">当前版本为静态演示站，所有照片与答案仅在本机浏览器中处理。</p>
         </section>
       </main>
@@ -1264,6 +1338,10 @@ export default function Home() {
                 <FileText size={18} />
                 请按最近30天、熟悉家庭环境中的通常表现作答。刚搬家、生病或术后建议恢复稳定后再测。
               </div>
+              <button className="secondary-button full preview-button" onClick={openDemoReport}>
+                <Sparkles size={17} />
+                直接预览最终报告
+              </button>
             </div>
           </section>
         )}
