@@ -888,6 +888,7 @@ export default function Home() {
   const [imageGenerationStatus, setImageGenerationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [imageGenerationProvider, setImageGenerationProvider] = useState<ImageGenerationProvider>("none");
   const [imageGenerationNote, setImageGenerationNote] = useState("");
+  const [imageGenerationAuthCode, setImageGenerationAuthCode] = useState("");
   const [coreAnswers, setCoreAnswers] = useState<Record<number, number | "unknown">>({});
   const [relationshipAnswers, setRelationshipAnswers] = useState<Record<number, string>>({});
   const [strategyAnswers, setStrategyAnswers] = useState<Record<number, string>>({});
@@ -909,6 +910,8 @@ export default function Home() {
       : 100;
   const activeAccessoryMeta = accessoryCatalog.find((item) => item.id === activeAccessory) ?? accessoryCatalog[0];
   const activeAccessoryColors = accessories[activeAccessory]?.colors ?? activeAccessoryMeta.defaultColors;
+  const isDemoPreview = authorizedCode === "DEMO-PREVIEW";
+  const effectiveImageAuthCode = isDemoPreview ? imageGenerationAuthCode.trim().toUpperCase() : authorizedCode || accessCode.trim().toUpperCase();
   const imageGenerationSourceLabel = imageGenerationProvider === "ark-seedream"
     ? "真实 AI 生图"
     : imageGenerationProvider === "stored"
@@ -1005,6 +1008,7 @@ export default function Home() {
     setImageGenerationStatus("ready");
     setImageGenerationProvider("local-preview");
     setImageGenerationNote("已加载演示像素猫底图，可以直接拖动饰品看效果。");
+    setImageGenerationAuthCode("");
     setAccessories(defaultAccessories);
     setActiveAccessory("starCrown");
     setQuestionIndex(testItems.length - 1);
@@ -1031,6 +1035,12 @@ export default function Home() {
 
   async function generatePixelCatImage() {
     if (!report) return;
+    if (!effectiveImageAuthCode) {
+      setImageGenerationStatus("error");
+      setImageGenerationProvider("none");
+      setImageGenerationNote(isDemoPreview ? "演示报告需要先填写一个真实授权码，才能调用 AI 生图。" : "缺少授权码，无法生成图片。");
+      return;
+    }
     setImageGenerationStatus("loading");
     setImageGenerationProvider("none");
     setImageGenerationNote("正在生成像素猫底图...");
@@ -1041,7 +1051,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           catName,
-          authCode: authorizedCode || accessCode.trim(),
+          authCode: effectiveImageAuthCode,
           scientificType: report.personality.scientificType,
           mainTitle: report.personality.mainTitle,
           coreJudgment: report.personality.coreJudgment,
@@ -1719,6 +1729,16 @@ export default function Home() {
                       <input type="file" accept="image/*" onChange={handlePhoto} />
                     </label>
                   </div>
+                  {isDemoPreview && (
+                    <label className="image-auth-code-field">
+                      <span>测试生图授权码</span>
+                      <input
+                        value={imageGenerationAuthCode}
+                        onChange={(event) => setImageGenerationAuthCode(event.target.value)}
+                        placeholder="输入真实授权码后再生成"
+                      />
+                    </label>
+                  )}
                   <button className="image-gen-button" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
                     <Sparkles size={17} />
                     {imageGenerationStatus === "loading" ? "正在生成底图" : "生成像素猫底图"}

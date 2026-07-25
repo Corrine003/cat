@@ -1432,6 +1432,39 @@ p {
   font-weight: 900;
 }
 
+.image-auth-code-field {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid rgba(150, 99, 33, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 211, 110, 0.13);
+}
+
+.image-auth-code-field span {
+  color: #8b6a2e;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.image-auth-code-field input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid rgba(23, 32, 47, 0.14);
+  border-radius: 8px;
+  background: #fffdfa;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  padding: 0 12px;
+  outline: none;
+}
+
+.image-auth-code-field input:focus {
+  border-color: rgba(111, 183, 177, 0.72);
+  box-shadow: 0 0 0 3px rgba(111, 183, 177, 0.16);
+}
+
 .result-photo-prompt {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
