@@ -27,6 +27,16 @@ export type AccessoryId =
   | "fishPin"
   | "heartSpark"
   | "bonsaiTree"
+  | "oakTree"
+  | "pineTree"
+  | "bush"
+  | "grassTuft"
+  | "mushroom"
+  | "pixelCloud"
+  | "pixelSun"
+  | "woodFence"
+  | "roundStone"
+  | "tinyButterfly"
   | "tinyBird"
   | "flowerSprig"
   | "luckyClover";
@@ -513,6 +523,176 @@ export const accessoryCatalog: AccessoryDefinition[] = [
         <rect x="8" y="18" width="10" height="8" fill={c.secondary} />
         <rect x="22" y="30" width="4" height="8" fill={c.secondary} />
         <rect x="32" y="30" width="4" height="8" fill={c.secondary} />
+      </svg>
+    ),
+  },
+  {
+    id: "oakTree",
+    label: "圆冠树",
+    group: "自然",
+    defaultPlacement: { x: 14, y: 66, scale: 1.05 },
+    defaultColors: { primary: "#77b66e", secondary: "#6f3f18", accent: "#a8d47a" },
+    render: (c) => (
+      <svg viewBox="0 0 76 82" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="32" y="42" width="12" height="28" fill={c.secondary} />
+        <rect x="18" y="16" width="40" height="22" fill={c.primary} />
+        <rect x="10" y="28" width="56" height="24" fill={c.primary} />
+        <rect x="22" y="8" width="32" height="14" fill={c.accent} />
+        <rect x="16" y="52" width="44" height="8" fill={c.primary} />
+        <rect x="24" y="70" width="28" height="6" fill={c.secondary} />
+      </svg>
+    ),
+  },
+  {
+    id: "pineTree",
+    label: "松树",
+    group: "自然",
+    defaultPlacement: { x: 86, y: 66, scale: 1 },
+    defaultColors: { primary: "#3f8f62", secondary: "#5a3518", accent: "#9bbb77" },
+    render: (c) => (
+      <svg viewBox="0 0 66 84" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="28" y="58" width="10" height="18" fill={c.secondary} />
+        <rect x="26" y="6" width="14" height="12" fill={c.accent} />
+        <rect x="20" y="18" width="26" height="12" fill={c.primary} />
+        <rect x="14" y="30" width="38" height="14" fill={c.primary} />
+        <rect x="8" y="44" width="50" height="16" fill={c.primary} />
+        <rect x="18" y="74" width="30" height="6" fill={c.secondary} />
+      </svg>
+    ),
+  },
+  {
+    id: "bush",
+    label: "树丛",
+    group: "自然",
+    defaultPlacement: { x: 18, y: 84, scale: 0.88 },
+    defaultColors: { primary: "#77b66e", secondary: "#3f6c4e", accent: "#ffd36e" },
+    render: (c) => (
+      <svg viewBox="0 0 70 40" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="8" y="22" width="54" height="12" fill={c.secondary} />
+        <rect x="12" y="14" width="16" height="16" fill={c.primary} />
+        <rect x="27" y="8" width="16" height="22" fill={c.primary} />
+        <rect x="42" y="14" width="16" height="16" fill={c.primary} />
+        <rect x="18" y="18" width="8" height="8" fill={c.primary} />
+        <rect x="44" y="18" width="8" height="8" fill={c.primary} />
+        <rect x="20" y="20" width="6" height="6" fill={c.accent} />
+        <rect x="44" y="20" width="6" height="6" fill={c.accent} />
+      </svg>
+    ),
+  },
+  {
+    id: "grassTuft",
+    label: "草丛",
+    group: "自然",
+    defaultPlacement: { x: 50, y: 88, scale: 0.74 },
+    defaultColors: { primary: "#9bbb77", secondary: "#3f6c4e", accent: "#d7f3a0" },
+    render: (c) => (
+      <svg viewBox="0 0 58 38" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="6" y="26" width="46" height="6" fill={c.secondary} />
+        <rect x="12" y="14" width="6" height="14" fill={c.primary} />
+        <rect x="22" y="6" width="6" height="22" fill={c.primary} />
+        <rect x="32" y="12" width="6" height="16" fill={c.primary} />
+        <rect x="42" y="18" width="6" height="10" fill={c.accent} />
+      </svg>
+    ),
+  },
+  {
+    id: "mushroom",
+    label: "蘑菇",
+    group: "自然",
+    defaultPlacement: { x: 72, y: 84, scale: 0.72 },
+    defaultColors: { primary: "#ef6f72", secondary: "#fff3b0", accent: "#8b5a24" },
+    render: (c) => (
+      <svg viewBox="0 0 50 46" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="14" y="10" width="22" height="10" fill={c.primary} />
+        <rect x="8" y="18" width="34" height="10" fill={c.primary} />
+        <rect x="18" y="26" width="14" height="14" fill={c.secondary} />
+        <rect x="14" y="14" width="6" height="6" fill={c.secondary} />
+        <rect x="30" y="18" width="6" height="6" fill={c.secondary} />
+        <rect x="16" y="40" width="18" height="4" fill={c.accent} />
+      </svg>
+    ),
+  },
+  {
+    id: "pixelCloud",
+    label: "云朵",
+    group: "天空",
+    defaultPlacement: { x: 24, y: 18, scale: 0.8 },
+    defaultColors: { primary: "#fffdfa", secondary: "#8fb6e8", accent: "#d7f3ef" },
+    render: (c) => (
+      <svg viewBox="0 0 76 38" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="12" y="18" width="50" height="12" fill={c.primary} />
+        <rect x="22" y="10" width="18" height="12" fill={c.primary} />
+        <rect x="42" y="12" width="14" height="10" fill={c.accent} />
+        <rect x="8" y="28" width="58" height="4" fill={c.secondary} />
+      </svg>
+    ),
+  },
+  {
+    id: "pixelSun",
+    label: "太阳",
+    group: "天空",
+    defaultPlacement: { x: 82, y: 18, scale: 0.74 },
+    defaultColors: { primary: "#ffd36e", secondary: "#ef8f72", accent: "#fff3b0" },
+    render: (c) => (
+      <svg viewBox="0 0 54 54" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="22" y="4" width="10" height="10" fill={c.primary} />
+        <rect x="22" y="40" width="10" height="10" fill={c.primary} />
+        <rect x="4" y="22" width="10" height="10" fill={c.primary} />
+        <rect x="40" y="22" width="10" height="10" fill={c.primary} />
+        <rect x="16" y="16" width="22" height="22" fill={c.primary} />
+        <rect x="20" y="20" width="14" height="14" fill={c.accent} />
+        <rect x="36" y="36" width="6" height="6" fill={c.secondary} />
+      </svg>
+    ),
+  },
+  {
+    id: "woodFence",
+    label: "木栅栏",
+    group: "自然",
+    defaultPlacement: { x: 50, y: 82, scale: 1.05 },
+    defaultColors: { primary: "#c58a3d", secondary: "#6f3f18", accent: "#ffe5ac" },
+    render: (c) => (
+      <svg viewBox="0 0 92 42" aria-hidden="true" shapeRendering="crispEdges">
+        {[10, 30, 50, 70].map((x) => (
+          <g key={x}>
+            <rect x={x} y="8" width="10" height="28" fill={c.primary} />
+            <rect x={x} y="4" width="10" height="6" fill={c.accent} />
+            <rect x={x} y="34" width="10" height="4" fill={c.secondary} />
+          </g>
+        ))}
+        <rect x="4" y="16" width="82" height="8" fill={c.secondary} />
+        <rect x="4" y="28" width="82" height="6" fill={c.secondary} />
+      </svg>
+    ),
+  },
+  {
+    id: "roundStone",
+    label: "石头",
+    group: "自然",
+    defaultPlacement: { x: 36, y: 88, scale: 0.7 },
+    defaultColors: { primary: "#9aa0a6", secondary: "#5f6670", accent: "#d9dde2" },
+    render: (c) => (
+      <svg viewBox="0 0 54 34" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="12" y="12" width="30" height="14" fill={c.primary} />
+        <rect x="18" y="6" width="20" height="8" fill={c.primary} />
+        <rect x="8" y="20" width="38" height="8" fill={c.secondary} />
+        <rect x="22" y="10" width="10" height="6" fill={c.accent} />
+      </svg>
+    ),
+  },
+  {
+    id: "tinyButterfly",
+    label: "小蝴蝶",
+    group: "天空",
+    defaultPlacement: { x: 70, y: 28, scale: 0.62 },
+    defaultColors: { primary: "#c8a2d8", secondary: "#6f4a8f", accent: "#ffd36e" },
+    render: (c) => (
+      <svg viewBox="0 0 48 38" aria-hidden="true" shapeRendering="crispEdges">
+        <rect x="8" y="10" width="12" height="12" fill={c.primary} />
+        <rect x="28" y="10" width="12" height="12" fill={c.primary} />
+        <rect x="20" y="14" width="8" height="12" fill={c.secondary} />
+        <rect x="10" y="22" width="10" height="8" fill={c.accent} />
+        <rect x="28" y="22" width="10" height="8" fill={c.accent} />
       </svg>
     ),
   },

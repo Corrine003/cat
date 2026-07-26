@@ -23,11 +23,10 @@ import {
   accessoryCatalog,
   accessoryColorPalettes,
   accessoryColorSlots,
-  defaultAccessories,
   getAccessoryLabel,
   type AccessoryColorSlot,
+  type AccessoryColors,
   type AccessoryId,
-  type AccessoryPlacement,
 } from "./pixel-accessories";
 import { createPixelCatSvgDataUrl } from "./pixel-cat";
 import { buildAppCatReport } from "./report/report-adapter";
@@ -63,6 +62,7 @@ type Profile = {
 };
 
 type Screen = "profile" | "test" | "generating" | "result";
+type ResultView = "image" | "report";
 type ImageGenerationProvider = "none" | "local-preview" | "ark-seedream" | "stored";
 
 type TestItem =
@@ -70,6 +70,40 @@ type TestItem =
   | { kind: "relationship"; question: ChoiceQuestion }
   | { kind: "strategy"; question: ChoiceQuestion }
   | { kind: "safety"; id: number; text: string };
+
+type AccessoryInstance = {
+  uid: string;
+  accessoryId: AccessoryId;
+  x: number;
+  y: number;
+  scale: number;
+  colors: AccessoryColors;
+};
+
+type CatLayer = {
+  x: number;
+  y: number;
+  scale: number;
+};
+
+const defaultCatLayer: CatLayer = { x: 50, y: 50, scale: 0.82 };
+
+type ActiveCanvasItem =
+  | { kind: "cat" }
+  | { kind: "accessory"; uid: string }
+  | null;
+
+type ResizeGesture = {
+  kind: "cat" | "accessory";
+  uid?: string;
+  startDistance: number;
+  startScale: number;
+};
+
+type DragOffset = {
+  x: number;
+  y: number;
+};
 
 const ACCESS_CODES = ["CATLAB2026", "MEOW2026", "猫格观测"];
 
@@ -830,6 +864,34 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+const personalityStampMap: Record<DimensionId, { title: string; icon: AccessoryId }> = {
+  perception: { title: "雷达常开", icon: "tinyButterfly" },
+  exploration: { title: "先去看看", icon: "tinyBird" },
+  attachment: { title: "贴身巡航", icon: "luckyClover" },
+  social: { title: "欢迎营业", icon: "flowerCrown" },
+  autonomy: { title: "边界清楚", icon: "woodFence" },
+  stability: { title: "节奏稳定", icon: "roundStone" },
+};
+
+function topScoredDimensions(scores: Record<DimensionId, number | null>, count = 3) {
+  return [...dimensionOrder]
+    .sort((left, right) => (scores[right] ?? -1) - (scores[left] ?? -1))
+    .slice(0, count);
+}
+
+function makeAccessoryInstance(accessoryId: AccessoryId): AccessoryInstance {
+  const item = accessoryCatalog.find((entry) => entry.id === accessoryId) ?? accessoryCatalog[0];
+  const drift = Math.random() * 8 - 4;
+  return {
+    uid: `${accessoryId}-${Date.now()}-${Math.random().toString(16).slice(2, 7)}`,
+    accessoryId,
+    x: clamp(item.defaultPlacement.x + drift, 4, 96),
+    y: clamp(item.defaultPlacement.y + drift, 4, 96),
+    scale: item.defaultPlacement.scale,
+    colors: { ...item.defaultColors },
+  };
+}
+
 function RadarChart({ scores }: { scores: Record<DimensionId, number | null> }) {
   const ids = dimensionOrder;
   const size = 300;
@@ -875,6 +937,7 @@ export default function Home() {
   const [authorizedCode, setAuthorizedCode] = useState("");
   const [accessError, setAccessError] = useState("");
   const [screen, setScreen] = useState<Screen>("profile");
+  const [resultView, setResultView] = useState<ResultView>("image");
   const [questionIndex, setQuestionIndex] = useState(0);
   const [profile, setProfile] = useState<Profile>({
     name: "",
@@ -885,6 +948,7 @@ export default function Home() {
   });
   const [photo, setPhoto] = useState<string>("");
   const [generatedCatImage, setGeneratedCatImage] = useState<string>("");
+  const [compositedAvatarImage, setCompositedAvatarImage] = useState<string>("");
   const [imageGenerationStatus, setImageGenerationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [imageGenerationProvider, setImageGenerationProvider] = useState<ImageGenerationProvider>("none");
   const [imageGenerationNote, setImageGenerationNote] = useState("");
@@ -894,10 +958,16 @@ export default function Home() {
   const [strategyAnswers, setStrategyAnswers] = useState<Record<number, string>>({});
   const [safetyFlags, setSafetyFlags] = useState<Record<number, boolean>>({});
   const [reportId, setReportId] = useState(makeId);
-  const [accessories, setAccessories] = useState<Record<AccessoryId, AccessoryPlacement>>(defaultAccessories);
-  const [activeAccessory, setActiveAccessory] = useState<AccessoryId>("starCrown");
-  const [draggingAccessory, setDraggingAccessory] = useState<AccessoryId | null>(null);
+  const [accessories, setAccessories] = useState<AccessoryInstance[]>([]);
+  const [selectedAccessoryId, setSelectedAccessoryId] = useState<AccessoryId>("starCrown");
+  const [activeAccessoryUid, setActiveAccessoryUid] = useState<string | null>(null);
+  const [catLayer, setCatLayer] = useState<CatLayer>(defaultCatLayer);
+  const [activeCanvasItem, setActiveCanvasItem] = useState<ActiveCanvasItem>(null);
   const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
+  const draggingAccessoryUidRef = useRef<string | null>(null);
+  const draggingCatRef = useRef(false);
+  const resizeGestureRef = useRef<ResizeGesture | null>(null);
+  const dragOffsetRef = useRef<DragOffset>({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
   const editorPhotoRef = useRef<HTMLDivElement>(null);
 
@@ -908,8 +978,10 @@ export default function Home() {
     : screen === "test"
       ? ((questionIndex + 1) / testItems.length) * 100
       : 100;
-  const activeAccessoryMeta = accessoryCatalog.find((item) => item.id === activeAccessory) ?? accessoryCatalog[0];
-  const activeAccessoryColors = accessories[activeAccessory]?.colors ?? activeAccessoryMeta.defaultColors;
+  const activeAccessory = accessories.find((item) => item.uid === activeAccessoryUid) ?? null;
+  const activeAccessoryMeta = accessoryCatalog.find((item) => item.id === (activeAccessory?.accessoryId ?? selectedAccessoryId)) ?? accessoryCatalog[0];
+  const activeAccessoryColors = activeAccessory?.colors ?? activeAccessoryMeta.defaultColors;
+  const isCatSelected = activeCanvasItem?.kind === "cat";
   const isDemoPreview = authorizedCode === "DEMO-PREVIEW";
   const effectiveImageAuthCode = isDemoPreview ? imageGenerationAuthCode.trim().toUpperCase() : authorizedCode || accessCode.trim().toUpperCase();
   const imageGenerationSourceLabel = imageGenerationProvider === "ark-seedream"
@@ -1000,6 +1072,7 @@ export default function Home() {
     setSafetyFlags({});
     setReportId("CAT-STAR-0001");
     setPhoto("");
+    setCompositedAvatarImage("");
     setGeneratedCatImage(createPixelCatSvgDataUrl({
       name: "薄荷",
       title: "先观察再出手的好奇侦探",
@@ -1009,8 +1082,11 @@ export default function Home() {
     setImageGenerationProvider("local-preview");
     setImageGenerationNote("已加载演示像素猫底图，可以直接拖动饰品看效果。");
     setImageGenerationAuthCode("");
-    setAccessories(defaultAccessories);
-    setActiveAccessory("starCrown");
+    setAccessories([]);
+    setSelectedAccessoryId("starCrown");
+    setActiveAccessoryUid(null);
+    setActiveCanvasItem(null);
+    setCatLayer(defaultCatLayer);
     setQuestionIndex(testItems.length - 1);
     setScreen("result");
   }
@@ -1026,6 +1102,7 @@ export default function Home() {
     reader.onload = () => {
       setPhoto(String(reader.result));
       setGeneratedCatImage("");
+      setCompositedAvatarImage("");
       setImageGenerationStatus("idle");
       setImageGenerationProvider("none");
       setImageGenerationNote("");
@@ -1061,19 +1138,21 @@ export default function Home() {
       });
 
       if (!response.ok) throw new Error(`Image API returned ${response.status}`);
-      const data = (await response.json()) as { imageUrl?: string; provider?: ImageGenerationProvider; note?: string };
+      const data = (await response.json()) as { imageUrl?: string; provider?: ImageGenerationProvider; note?: string; transparentBackground?: boolean };
       if (!data.imageUrl) throw new Error("Image API did not return imageUrl");
 
       setGeneratedCatImage(data.imageUrl);
+      setCompositedAvatarImage("");
       setImageGenerationStatus("ready");
       setImageGenerationProvider(data.provider ?? "none");
-      setImageGenerationNote(data.note || (data.provider === "ark-seedream" ? "已生成 AI 像素猫底图。本授权码已使用一次生图额度。" : "已生成像素猫预览图。"));
+      setImageGenerationNote(data.note || (data.transparentBackground ? "已生成透明背景像素猫。" : data.provider === "ark-seedream" ? "已生成 AI 像素猫底图。本授权码已使用一次生图额度。" : "已生成像素猫预览图。"));
     } catch {
       setGeneratedCatImage(createPixelCatSvgDataUrl({
         name: catName,
         title: report.personality.mainTitle,
         scores: result.scores,
       }));
+      setCompositedAvatarImage("");
       setImageGenerationStatus("error");
       setImageGenerationProvider("none");
       setImageGenerationNote(window.location.hostname === "localhost"
@@ -1096,6 +1175,24 @@ export default function Home() {
     link.click();
   }
 
+  async function finishImageEditor() {
+    if (editorPhotoRef.current) {
+      try {
+        editorPhotoRef.current.classList.add("capture-clean");
+        const image = await toPng(editorPhotoRef.current, {
+          cacheBust: true,
+          pixelRatio: 2,
+          backgroundColor: "#ffffff",
+          filter: (node) => !(node instanceof HTMLElement && node.dataset.editorControl === "true"),
+        });
+        setCompositedAvatarImage(image);
+      } finally {
+        editorPhotoRef.current.classList.remove("capture-clean");
+      }
+    }
+    setIsImageEditorOpen(false);
+  }
+
   function openImageEditor() {
     if (!report) return;
     if (!posterImage) {
@@ -1110,90 +1207,216 @@ export default function Home() {
     setIsImageEditorOpen(true);
   }
 
-  function moveAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId, stage: HTMLDivElement | null) {
+  function moveAccessory(event: PointerEvent<HTMLElement>, uid: string, stage: HTMLDivElement | null, offset: DragOffset = { x: 0, y: 0 }) {
     const rect = stage?.getBoundingClientRect();
     if (!rect) return;
-    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 4, 96);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 4, 96);
-    setAccessories((current) => ({
-      ...current,
-      [id]: { ...current[id], x, y, visible: true },
-    }));
+    const x = clamp(((event.clientX - rect.left) / rect.width) * 100 - offset.x, 4, 96);
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100 - offset.y, 4, 96);
+    setAccessories((current) => current.map((item) => (item.uid === uid ? { ...item, x, y } : item)));
   }
 
-  function beginAccessoryDrag(event: PointerEvent<HTMLElement>, id: AccessoryId, stage: HTMLDivElement | null) {
+  function moveCat(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null, offset: DragOffset = { x: 0, y: 0 }) {
+    const rect = stage?.getBoundingClientRect();
+    if (!rect) return;
+    const x = clamp(((event.clientX - rect.left) / rect.width) * 100 - offset.x, 4, 96);
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100 - offset.y, 4, 96);
+    setCatLayer((current) => ({ ...current, x, y }));
+  }
+
+  function makeDragOffset(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null, x: number, y: number): DragOffset {
+    const rect = stage?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * 100 - x,
+      y: ((event.clientY - rect.top) / rect.height) * 100 - y,
+    };
+  }
+
+  function beginCatDrag(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null) {
     event.preventDefault();
     event.stopPropagation();
-    setActiveAccessory(id);
-    setDraggingAccessory(id);
-    moveAccessory(event, id, stage);
+    setActiveAccessoryUid(null);
+    setActiveCanvasItem({ kind: "cat" });
+    draggingCatRef.current = true;
+    dragOffsetRef.current = makeDragOffset(event, stage, catLayer.x, catLayer.y);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function dragAccessory(event: PointerEvent<HTMLElement>, id: AccessoryId, stage: HTMLDivElement | null) {
-    if (draggingAccessory !== id) return;
-    moveAccessory(event, id, stage);
+  function dragCat(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null) {
+    if (!draggingCatRef.current) return;
+    moveCat(event, stage, dragOffsetRef.current);
+  }
+
+  function endCatDrag(event: PointerEvent<HTMLElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    draggingCatRef.current = false;
+    dragOffsetRef.current = { x: 0, y: 0 };
+  }
+
+  function beginAccessoryDrag(event: PointerEvent<HTMLElement>, uid: string, stage: HTMLDivElement | null) {
+    event.preventDefault();
+    event.stopPropagation();
+    const instance = accessories.find((item) => item.uid === uid);
+    if (instance) setSelectedAccessoryId(instance.accessoryId);
+    setActiveAccessoryUid(uid);
+    setActiveCanvasItem({ kind: "accessory", uid });
+    draggingAccessoryUidRef.current = uid;
+    if (instance) dragOffsetRef.current = makeDragOffset(event, stage, instance.x, instance.y);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function dragAccessory(event: PointerEvent<HTMLElement>, uid: string, stage: HTMLDivElement | null) {
+    if (draggingAccessoryUidRef.current !== uid) return;
+    moveAccessory(event, uid, stage, dragOffsetRef.current);
   }
 
   function endAccessoryDrag(event: PointerEvent<HTMLElement>) {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    setDraggingAccessory(null);
+    draggingAccessoryUidRef.current = null;
+    dragOffsetRef.current = { x: 0, y: 0 };
   }
 
-  function toggleAccessory(id: AccessoryId) {
-    setActiveAccessory(id);
-    setAccessories((current) => ({
-      ...current,
-      [id]: { ...current[id], visible: current[id].visible ? !current[id].visible : true },
-    }));
+  function addAccessory(id: AccessoryId) {
+    const next = makeAccessoryInstance(id);
+    setSelectedAccessoryId(id);
+    setActiveAccessoryUid(next.uid);
+    setActiveCanvasItem({ kind: "accessory", uid: next.uid });
+    setAccessories((current) => [...current, next]);
   }
 
   function resizeActiveAccessory(delta: number) {
-    setAccessories((current) => ({
-      ...current,
-      [activeAccessory]: {
-        ...current[activeAccessory],
-        visible: true,
-        scale: clamp(current[activeAccessory].scale + delta, 0.55, 1.75),
-      },
-    }));
+    if (!activeAccessoryUid) return;
+    setAccessories((current) => current.map((item) => (
+      item.uid === activeAccessoryUid
+        ? { ...item, scale: clamp(item.scale + delta, 0.45, 1.6) }
+        : item
+    )));
   }
 
   function updateActiveAccessoryColor(slot: AccessoryColorSlot, color: string) {
-    setAccessories((current) => ({
-      ...current,
-      [activeAccessory]: {
-        ...current[activeAccessory],
-        visible: true,
-        colors: {
-          ...current[activeAccessory].colors,
-          [slot]: color,
-        },
-      },
-    }));
+    if (!activeAccessoryUid) return;
+    setAccessories((current) => current.map((item) => (
+      item.uid === activeAccessoryUid
+        ? { ...item, colors: { ...item.colors, [slot]: color } }
+        : item
+    )));
   }
 
-  function applyAccessoryPalette(colors: AccessoryPlacement["colors"]) {
-    setAccessories((current) => ({
-      ...current,
-      [activeAccessory]: {
-        ...current[activeAccessory],
-        visible: true,
-        colors,
-      },
-    }));
+  function applyAccessoryPalette(colors: AccessoryColors) {
+    if (!activeAccessoryUid) return;
+    setAccessories((current) => current.map((item) => (
+      item.uid === activeAccessoryUid ? { ...item, colors: { ...colors } } : item
+    )));
   }
 
   function resetAccessories() {
-    setAccessories(defaultAccessories);
-    setActiveAccessory("starCrown");
+    setAccessories([]);
+    setSelectedAccessoryId("starCrown");
+    setActiveAccessoryUid(null);
+    setActiveCanvasItem(null);
+    setCatLayer(defaultCatLayer);
+  }
+
+  function removeActiveAccessory() {
+    if (!activeAccessoryUid) return;
+    setAccessories((current) => current.filter((item) => item.uid !== activeAccessoryUid));
+    setActiveAccessoryUid(null);
+    setActiveCanvasItem(null);
+  }
+
+  function removeCanvasItem(kind: "cat" | "accessory", uid?: string) {
+    if (kind === "cat") {
+      setGeneratedCatImage("");
+      setImageGenerationStatus("idle");
+      setImageGenerationProvider("none");
+      setImageGenerationNote("");
+      setActiveCanvasItem(null);
+      return;
+    }
+    if (!uid) return;
+    setAccessories((current) => current.filter((item) => item.uid !== uid));
+    if (activeAccessoryUid === uid) {
+      setActiveAccessoryUid(null);
+      setActiveCanvasItem(null);
+    }
   }
 
   function placeActiveAccessory(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null) {
     if (event.target !== event.currentTarget) return;
-    moveAccessory(event, activeAccessory, stage);
+    if (!activeAccessoryUid) return;
+    moveAccessory(event, activeAccessoryUid, stage);
+  }
+
+  function resizeCat(delta: number) {
+    setCatLayer((current) => ({ ...current, scale: clamp(current.scale + delta, 0.45, 1.35) }));
+  }
+
+  function beginCanvasItemResize(
+    event: PointerEvent<HTMLElement>,
+    kind: "cat" | "accessory",
+    stage: HTMLDivElement | null,
+    uid?: string,
+  ) {
+    const rect = stage?.getBoundingClientRect();
+    if (!rect) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const item = kind === "cat" ? catLayer : accessories.find((entry) => entry.uid === uid);
+    if (!item) return;
+    if (kind === "accessory" && uid) {
+      const instance = accessories.find((entry) => entry.uid === uid);
+      if (instance) setSelectedAccessoryId(instance.accessoryId);
+      setActiveAccessoryUid(uid);
+      setActiveCanvasItem({ kind: "accessory", uid });
+    } else {
+      setActiveAccessoryUid(null);
+      setActiveCanvasItem({ kind: "cat" });
+    }
+
+    resizeGestureRef.current = {
+      kind,
+      uid,
+      startDistance: canvasDistanceFromItemCenter(event, rect, item.x, item.y),
+      startScale: item.scale,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function resizeCanvasItem(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null) {
+    const gesture = resizeGestureRef.current;
+    const rect = stage?.getBoundingClientRect();
+    if (!gesture || !rect) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const item = gesture.kind === "cat" ? catLayer : accessories.find((entry) => entry.uid === gesture.uid);
+    if (!item || gesture.startDistance <= 0) return;
+    const nextScale = gesture.startScale * (canvasDistanceFromItemCenter(event, rect, item.x, item.y) / gesture.startDistance);
+    if (gesture.kind === "cat") {
+      setCatLayer((current) => ({ ...current, scale: clamp(nextScale, 0.45, 1.35) }));
+      return;
+    }
+    setAccessories((current) => current.map((entry) => (
+      entry.uid === gesture.uid ? { ...entry, scale: clamp(nextScale, 0.45, 1.6) } : entry
+    )));
+  }
+
+  function endCanvasItemResize(event: PointerEvent<HTMLElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    resizeGestureRef.current = null;
+  }
+
+  function canvasDistanceFromItemCenter(event: PointerEvent<HTMLElement>, rect: DOMRect, x: number, y: number) {
+    const centerX = rect.left + (x / 100) * rect.width;
+    const centerY = rect.top + (y / 100) * rect.height;
+    return Math.max(8, Math.hypot(event.clientX - centerX, event.clientY - centerY));
   }
 
   function advanceAfterAnswer() {
@@ -1259,6 +1482,7 @@ export default function Home() {
       setQuestionIndex((value) => value + 1);
       return;
     }
+    setResultView("image");
     setScreen("generating");
   }
 
@@ -1275,6 +1499,7 @@ export default function Home() {
     : 0;
   const confidencePercent = report ? Math.round(report.confidence.completeness * 100) : 0;
   const posterImage = generatedCatImage || photo;
+  const topPosterDimensions = report ? topScoredDimensions(result.scores, 3) : [];
 
   if (!authorized) {
     return (
@@ -1408,8 +1633,29 @@ export default function Home() {
         )}
 
         {screen === "result" && report && (
-          <section className="result-layout">
-            <article className="report panel">
+          <section className={`result-layout ${resultView === "image" ? "image-view" : "report-view"}`}>
+            <div className="result-view-tabs" role="tablist" aria-label="结果视图切换">
+              <button
+                type="button"
+                className={resultView === "image" ? "active" : ""}
+                onClick={() => setResultView("image")}
+                role="tab"
+                aria-selected={resultView === "image"}
+              >
+                总览
+              </button>
+              <button
+                type="button"
+                className={resultView === "report" ? "active" : ""}
+                onClick={() => setResultView("report")}
+                role="tab"
+                aria-selected={resultView === "report"}
+              >
+                详细报告
+              </button>
+            </div>
+            {resultView === "report" && (
+              <article className="report panel">
               <div className="report-heading">
                 <BadgeCheck size={24} />
                 <div>
@@ -1512,137 +1758,11 @@ export default function Home() {
                 <blockquote>“{report.innerMonologue}”</blockquote>
                 <p className="quote-line">{report.relationshipQuote}</p>
               </div>
-            </article>
+              </article>
+            )}
 
-            <aside className="share-column">
-              <div className="share-card poster-card" ref={cardRef}>
-                <header className="poster-hero">
-                  <div className="poster-stars">★ 猫格观测所 ★</div>
-                  <h2>{catName}的猫咪星轨录</h2>
-                  <p>基于行为数据生成的专属性格报告</p>
-                </header>
-
-                <section className="poster-profile-grid">
-                  <div
-                    className="poster-photo"
-                  >
-                    <button className="poster-edit-button" onClick={openImageEditor} data-export-hidden="true" type="button">
-                      <Pencil size={14} />
-                      编辑
-                    </button>
-                    {posterImage ? <img src={posterImage} alt={`${catName}的像素猫底图`} /> : <Camera size={52} />}
-                    {accessoryCatalog.map(({ id }) => {
-                      const placement = accessories[id];
-                      if (!placement.visible) return null;
-                      return (
-                        <div
-                          key={id}
-                          className="accessory-sticker poster-sticker"
-                          aria-label={getAccessoryLabel(id)}
-                          style={{
-                            left: `${placement.x}%`,
-                            top: `${placement.y}%`,
-                            transform: `translate(-50%, -50%) scale(${placement.scale})`,
-                          }}
-                        >
-                          <AccessoryIcon id={id} colors={placement.colors} />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="poster-profile-card">
-                    <div className="poster-meta">
-                      <span>ID: {reportId}</span>
-                    </div>
-                    <div className="poster-info-grid">
-                      <div>
-                        <span>昵称</span>
-                        <strong>{catName}</strong>
-                      </div>
-                      <div>
-                        <span>年龄</span>
-                        <strong>{profile.age || "未填写"}</strong>
-                      </div>
-                      <div>
-                        <span>性别</span>
-                        <strong>{profile.gender || "未填写"}</strong>
-                      </div>
-                      <div>
-                        <span>画像完整度</span>
-                        <strong>{confidencePercent}%</strong>
-                      </div>
-                    </div>
-                    <div className="poster-score-row">
-                      <div>
-                        <span>综合星轨分</span>
-                        <strong>{posterScore}</strong>
-                      </div>
-                      <div>
-                        <span>关系风格</span>
-                        <strong>{report.relationship.title}</strong>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="poster-section">
-                  <h3>六维性格星图</h3>
-                  <div className="poster-radar-grid">
-                    <RadarChart scores={result.scores} />
-                    <div className="poster-dimension-list">
-                      {(Object.keys(dimensions) as DimensionId[]).map((id) => (
-                        <div key={id}>
-                          <span>{dimensions[id].label}</span>
-                          <strong>{result.scores[id] ?? "不足"}</strong>
-                          <small>{scoreBand(result.scores[id])}</small>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-
-                <section className="poster-title-band">
-                  <span>{report.personality.scientificType}</span>
-                  <h3>{report.personality.mainTitle}</h3>
-                  <p>{report.personality.coreJudgment}</p>
-                  <div className="tag-row">
-                    {report.badges.map((badge) => <span key={badge.id}>{badge.label}</span>)}
-                  </div>
-                </section>
-
-                <section className="poster-split">
-                  <div className="poster-section compact">
-                    <h3>性格解读</h3>
-                    {reportParagraphs.slice(0, 3).map((paragraph, index) => (
-                      <p key={paragraph}><b>{String(index + 1).padStart(2, "0")}</b>{paragraph}</p>
-                    ))}
-                  </div>
-                  <div className="poster-section compact">
-                    <h3>关系解读</h3>
-                    <p>{report.relationship.summary}</p>
-                    <blockquote>“{report.relationshipQuote}”</blockquote>
-                  </div>
-                </section>
-
-                <section className="poster-split">
-                  <div className="poster-section compact">
-                    <h3>相处建议</h3>
-                    <ul>
-                      {report.advice.slice(0, 5).map((item) => (
-                        <li key={item.id}>{item.title}：{item.action}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="poster-section compact stamp-box">
-                    <h3>星轨印章</h3>
-                    <div className="paw-stamp"> paw </div>
-                    <p>已完成性格星轨认证</p>
-                    <blockquote>“{report.innerMonologue}”</blockquote>
-                  </div>
-                </section>
-
-                <footer className="poster-footer">每一只猫，都是宇宙里独一无二的星辰</footer>
-              </div>
+            {resultView === "image" && (
+              <aside className="share-column">
               <div className="result-image-tools" data-export-hidden="true">
                 <label className={`secondary-button full upload-action ${photo ? "ready" : "missing"}`}>
                   <Upload size={17} />
@@ -1653,21 +1773,116 @@ export default function Home() {
                   <Pencil size={17} />
                   编辑像素猫头像
                 </button>
+                <button className="primary-button full" onClick={downloadCard}>
+                  <Download size={18} />
+                  保存图片
+                </button>
+                <button className="secondary-button full" onClick={resetTest}>
+                  <RotateCcw size={17} />
+                  重新测试
+                </button>
               </div>
               {!photo && (
                 <p className="report-upload-hint" data-export-hidden="true">
                   生成 AI 像素猫前，请先上传一张脸部清楚的猫咪照片。
                 </p>
               )}
-              <button className="primary-button full" onClick={downloadCard}>
-                <Download size={18} />
-                生成最终分享图
-              </button>
-              <button className="secondary-button full" onClick={resetTest}>
-                <RotateCcw size={17} />
-                重新测试
-              </button>
-            </aside>
+              <div className="share-card poster-card" ref={cardRef}>
+                <header className="poster-hero compact-hero">
+                  <div className="poster-stars">猫格小像馆</div>
+                  <p>{report.personality.mainTitle}</p>
+                </header>
+
+                <section className="poster-profile-grid">
+                  <div className="poster-photo pixel-board pixel-bg-none">
+                    {compositedAvatarImage ? (
+                      <img className="composited-avatar-image" src={compositedAvatarImage} alt={`${catName}的合成像素头像`} />
+                    ) : posterImage ? (
+                      <div
+                        className="cat-layer poster-cat-layer canvas-item"
+                        style={{
+                          left: `${catLayer.x}%`,
+                          top: `${catLayer.y}%`,
+                          transform: `translate(-50%, -50%) scale(${catLayer.scale})`,
+                        }}
+                      >
+                        <img src={posterImage} alt={`${catName}的像素猫底图`} />
+                      </div>
+                    ) : <Camera size={52} />}
+                    {!compositedAvatarImage && accessories.map((item) => {
+                      return (
+                        <div
+                          key={item.uid}
+                          className="accessory-sticker poster-sticker"
+                          aria-label={getAccessoryLabel(item.accessoryId)}
+                          style={{
+                            left: `${item.x}%`,
+                            top: `${item.y}%`,
+                            transform: `translate(-50%, -50%) scale(${item.scale})`,
+                          }}
+                        >
+                          <AccessoryIcon id={item.accessoryId} colors={item.colors} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="poster-profile-card">
+                    <div className="poster-name-card">
+                      <span>猫咪</span>
+                      <strong>{catName}</strong>
+                    </div>
+                    <div className="poster-score-row">
+                      <div>
+                        <span>综合分</span>
+                        <strong>{posterScore}</strong>
+                      </div>
+                      <div>
+                        <span>关系风格</span>
+                        <strong>{report.relationship.title}</strong>
+                      </div>
+                    </div>
+                    <div className="poster-mini-facts">
+                      <span>{profile.gender || "性别未填"}</span>
+                      <span>{profile.age || "年龄未填"}</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="poster-title-band">
+                  <span>{report.personality.scientificType}</span>
+                  <p>{report.personality.coreJudgment}</p>
+                  <div className="poster-stamp-row">
+                    {topPosterDimensions.map((id) => {
+                      const stamp = personalityStampMap[id];
+                      return (
+                        <div className="cat-type-stamp" key={id}>
+                          <AccessoryIcon id={stamp.icon} />
+                          <strong>{stamp.title}</strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="poster-section visual-summary">
+                  <div className="poster-radar-summary">
+                    <RadarChart scores={result.scores} />
+                    <p>{report.shortSummary}</p>
+                  </div>
+                  <div className="poster-relationship-note">
+                    <span>猫咪与主人的关系</span>
+                    <strong>{report.relationship.title}</strong>
+                    <p>{report.relationship.summary}</p>
+                  </div>
+                  <div className="poster-badge-strip">
+                    {report.badges.slice(0, 3).map((badge) => <span key={badge.id}>{badge.label}</span>)}
+                  </div>
+                </section>
+
+                <footer className="poster-footer">“{report.innerMonologue}”</footer>
+              </div>
+              </aside>
+            )}
           </section>
         )}
 
@@ -1679,45 +1894,168 @@ export default function Home() {
                   <p className="eyebrow">Pixel Cat Studio</p>
                   <h2>编辑{catName}的猫猫头像</h2>
                 </div>
-                <button className="icon-button" onClick={() => setIsImageEditorOpen(false)} aria-label="关闭编辑器">
-                  <X size={18} />
-                </button>
+                <div className="image-editor-header-actions">
+                  <button className="primary-button editor-save-button" onClick={finishImageEditor}>
+                    保存头像
+                  </button>
+                  <button className="icon-button" onClick={() => setIsImageEditorOpen(false)} aria-label="关闭编辑器">
+                    <X size={18} />
+                  </button>
+                </div>
               </header>
 
               <div className="image-editor-body">
                 <div
-                  className="editor-stage accessory-stage"
+                  className="editor-stage accessory-stage pixel-board pixel-bg-none"
                   ref={editorPhotoRef}
                   onPointerDown={(event) => placeActiveAccessory(event, editorPhotoRef.current)}
                 >
-                  {posterImage ? <img src={posterImage} alt={`${catName}的像素猫编辑底图`} /> : <Camera size={72} />}
-                  {accessoryCatalog.map(({ id }) => {
-                    const placement = accessories[id];
-                    if (!placement.visible) return null;
+                  {posterImage ? (
+                    <div
+                      className={`cat-layer editor-cat-layer canvas-item ${isCatSelected ? "selected" : ""}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="移动猫猫头像"
+                      style={{
+                        left: `${catLayer.x}%`,
+                        top: `${catLayer.y}%`,
+                        transform: `translate(-50%, -50%) scale(${catLayer.scale})`,
+                      }}
+                      onPointerDown={(event) => beginCatDrag(event, editorPhotoRef.current)}
+                      onPointerMove={(event) => dragCat(event, editorPhotoRef.current)}
+                      onPointerUp={endCatDrag}
+                      onPointerCancel={endCatDrag}
+                    >
+                      <img src={posterImage} alt={`${catName}的像素猫编辑底图`} />
+                      {isCatSelected && (
+                        <div className="canvas-item-controls" data-editor-control="true" aria-hidden="true">
+                          <button
+                            type="button"
+                            className="canvas-corner delete"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeCanvasItem("cat");
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                          {["tl", "bl", "br"].map((corner) => (
+                            <button
+                              key={corner}
+                              type="button"
+                              className={`canvas-corner resize ${corner}`}
+                              onPointerDown={(event) => beginCanvasItemResize(event, "cat", editorPhotoRef.current)}
+                              onPointerMove={(event) => resizeCanvasItem(event, editorPhotoRef.current)}
+                              onPointerUp={endCanvasItemResize}
+                              onPointerCancel={endCanvasItemResize}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : <Camera size={72} />}
+                  {accessories.map((item) => {
                     return (
                       <div
-                        key={id}
-                        className={`accessory-sticker editor-sticker ${activeAccessory === id ? "active" : ""}`}
+                        key={item.uid}
+                        className={`accessory-sticker editor-sticker canvas-item ${activeAccessoryUid === item.uid ? "selected" : ""}`}
                         role="button"
                         tabIndex={0}
-                        aria-label={`移动${getAccessoryLabel(id)}`}
+                        aria-label={`移动${getAccessoryLabel(item.accessoryId)}`}
                         style={{
-                          left: `${placement.x}%`,
-                          top: `${placement.y}%`,
-                          transform: `translate(-50%, -50%) scale(${placement.scale})`,
+                          left: `${item.x}%`,
+                          top: `${item.y}%`,
+                          transform: `translate(-50%, -50%) scale(${item.scale})`,
                         }}
-                        onPointerDown={(event) => beginAccessoryDrag(event, id, editorPhotoRef.current)}
-                        onPointerMove={(event) => dragAccessory(event, id, editorPhotoRef.current)}
+                        onPointerDown={(event) => beginAccessoryDrag(event, item.uid, editorPhotoRef.current)}
+                        onPointerMove={(event) => dragAccessory(event, item.uid, editorPhotoRef.current)}
                         onPointerUp={endAccessoryDrag}
                         onPointerCancel={endAccessoryDrag}
                       >
-                        <AccessoryIcon id={id} colors={placement.colors} />
+                        <AccessoryIcon id={item.accessoryId} colors={item.colors} />
+                        {activeAccessoryUid === item.uid && (
+                          <div className="canvas-item-controls" data-editor-control="true" aria-hidden="true">
+                            <button
+                              type="button"
+                              className="canvas-corner delete"
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeCanvasItem("accessory", item.uid);
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
+                <section className="editor-library-panel">
+                  <div className="editor-library-title">
+                    <strong>素材</strong>
+                    <span>白色画板背景，点素材添加到画板。</span>
+                  </div>
+                  <div className="accessory-toolbar editor-accessory-toolbar">
+                    {accessoryCatalog.map((item) => (
+                      <button
+                        key={item.id}
+                        className={selectedAccessoryId === item.id ? "selected" : ""}
+                        onClick={() => addAccessory(item.id)}
+                        title={`${item.group} · ${item.label}`}
+                      >
+                        <AccessoryIcon id={item.id} />
+                        <span>
+                          <b>{item.label}</b>
+                          <small>{item.group}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
                 <aside className="editor-tools">
+                  <div className="accessory-color-panel">
+                    <div className="color-panel-head">
+                      <strong>{activeAccessoryMeta.label}</strong>
+                      <span>{activeAccessoryMeta.group}</span>
+                    </div>
+                    <div className="color-slot-grid">
+                      {accessoryColorSlots.map((slot) => (
+                        <label key={slot.id}>
+                          <span>{slot.label}</span>
+                          <input
+                            type="color"
+                            value={activeAccessoryColors[slot.id]}
+                            onChange={(event) => updateActiveAccessoryColor(slot.id, event.target.value)}
+                          />
+                          <code>{activeAccessoryColors[slot.id]}</code>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="palette-row">
+                      {accessoryColorPalettes.map((palette) => (
+                        <button key={palette.label} type="button" onClick={() => applyAccessoryPalette(palette.colors)} title={`使用${palette.label}色`}>
+                          <span style={{ backgroundColor: palette.colors.primary }} />
+                          <span style={{ backgroundColor: palette.colors.secondary }} />
+                          <span style={{ backgroundColor: palette.colors.accent }} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="accessory-size-row editor-size-row">
+                    <span>{activeAccessoryMeta.label}</span>
+                    <button onClick={removeActiveAccessory} disabled={!activeAccessoryUid}>删除</button>
+                    <button onClick={resetAccessories}>重置</button>
+                  </div>
+                  <div className="accessory-size-row cat-size-row">
+                    <button onClick={() => resizeCat(-0.08)}>猫缩小</button>
+                    <span>猫猫图层</span>
+                    <button onClick={() => resizeCat(0.08)}>猫放大</button>
+                  </div>
                   <div className={`result-photo-prompt ${photo ? "ready" : "missing"}`}>
                     <div>
                       <strong>{photo ? "当前参考图已就绪" : "生成前请上传猫咪正面照"}</strong>
@@ -1757,60 +2095,6 @@ export default function Home() {
                     </div>
                   )}
                   {imageGenerationNote && <p className={`image-gen-note ${imageGenerationStatus}`}>{imageGenerationNote}</p>}
-                  <p className="editor-help">先点下面的像素元素添加到图里，再拖动位置。</p>
-                  <div className="accessory-toolbar editor-accessory-toolbar">
-                    {accessoryCatalog.map((item) => (
-                      <button
-                        key={item.id}
-                        className={accessories[item.id].visible ? "selected" : ""}
-                        onClick={() => toggleAccessory(item.id)}
-                        title={`${item.group} · ${item.label}`}
-                      >
-                        <AccessoryIcon id={item.id} colors={accessories[item.id].colors} />
-                        <span>
-                          <b>{item.label}</b>
-                          <small>{item.group}</small>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="accessory-color-panel">
-                    <div className="color-panel-head">
-                      <strong>{activeAccessoryMeta.label}</strong>
-                      <span>{activeAccessoryMeta.group}</span>
-                    </div>
-                    <div className="color-slot-grid">
-                      {accessoryColorSlots.map((slot) => (
-                        <label key={slot.id}>
-                          <span>{slot.label}</span>
-                          <input
-                            type="color"
-                            value={activeAccessoryColors[slot.id]}
-                            onChange={(event) => updateActiveAccessoryColor(slot.id, event.target.value)}
-                          />
-                          <code>{activeAccessoryColors[slot.id]}</code>
-                        </label>
-                      ))}
-                    </div>
-                    <div className="palette-row">
-                      {accessoryColorPalettes.map((palette) => (
-                        <button key={palette.label} type="button" onClick={() => applyAccessoryPalette(palette.colors)} title={`使用${palette.label}色`}>
-                          <span style={{ backgroundColor: palette.colors.primary }} />
-                          <span style={{ backgroundColor: palette.colors.secondary }} />
-                          <span style={{ backgroundColor: palette.colors.accent }} />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="accessory-size-row editor-size-row">
-                    <button onClick={() => resizeActiveAccessory(-0.1)}>缩小</button>
-                    <span>{activeAccessoryMeta.label}</span>
-                    <button onClick={() => resizeActiveAccessory(0.1)}>放大</button>
-                    <button onClick={resetAccessories}>重置</button>
-                  </div>
-                  <button className="primary-button full editor-done-button" onClick={() => setIsImageEditorOpen(false)}>
-                    完成编辑
-                  </button>
                 </aside>
               </div>
             </section>

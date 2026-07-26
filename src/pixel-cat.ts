@@ -5,10 +5,10 @@ type PixelCatInput = {
 };
 
 const palette = [
-  { fur: "#7a6a58", stripe: "#3b332a", eye: "#d7f077", scarf: "#2f7b67" },
-  { fur: "#d8a05f", stripe: "#8a5428", eye: "#76c7e0", scarf: "#c83f46" },
-  { fur: "#d4d0c5", stripe: "#6e6a60", eye: "#ffd15f", scarf: "#3a8f6a" },
-  { fur: "#3c3a37", stripe: "#1f1f1d", eye: "#a8dc6b", scarf: "#d7b46a" },
+  { fur: "#7a6a58", stripe: "#3b332a", eye: "#d7f077" },
+  { fur: "#d8a05f", stripe: "#8a5428", eye: "#76c7e0" },
+  { fur: "#d4d0c5", stripe: "#6e6a60", eye: "#ffd15f" },
+  { fur: "#3c3a37", stripe: "#1f1f1d", eye: "#a8dc6b" },
 ];
 
 function hashText(value: string) {
@@ -25,17 +25,8 @@ function pickPalette(input: PixelCatInput) {
 
 export function createPixelCatSvgDataUrl(input: PixelCatInput) {
   const colors = pickPalette(input);
-  const name = input.name || "CAT";
-  const title = input.title || "pixel cat";
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" shape-rendering="crispEdges">
-      <rect width="512" height="512" fill="#102339"/>
-      <rect x="32" y="32" width="448" height="448" fill="#17304a"/>
-      <rect x="48" y="48" width="416" height="416" fill="#102339"/>
-      <rect x="80" y="80" width="24" height="24" fill="#ffd36e"/>
-      <rect x="400" y="96" width="16" height="16" fill="#ffd36e"/>
-      <rect x="360" y="56" width="10" height="10" fill="#ffe5ac"/>
-      <rect x="124" y="104" width="14" height="14" fill="#ffe5ac"/>
       <rect x="176" y="176" width="160" height="32" fill="${colors.fur}"/>
       <rect x="144" y="208" width="224" height="144" fill="${colors.fur}"/>
       <rect x="112" y="176" width="64" height="80" fill="${colors.fur}"/>
@@ -54,21 +45,13 @@ export function createPixelCatSvgDataUrl(input: PixelCatInput) {
       <rect x="300" y="196" width="36" height="12" fill="${colors.stripe}"/>
       <rect x="136" y="294" width="46" height="8" fill="#24180d"/>
       <rect x="330" y="294" width="46" height="8" fill="#24180d"/>
-      <rect x="156" y="352" width="200" height="40" fill="${colors.scarf}"/>
-      <rect x="236" y="360" width="40" height="40" fill="#ffd36e"/>
-      <rect x="248" y="372" width="16" height="16" fill="#8b5a24"/>
-      <rect x="88" y="400" width="336" height="34" fill="#ffe5ac"/>
-      <text x="256" y="423" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#4b2a11">${escapeSvg(name)} · ${escapeSvg(title)}</text>
+      <rect x="176" y="352" width="160" height="52" fill="${colors.fur}"/>
+      <rect x="136" y="368" width="40" height="40" fill="${colors.fur}"/>
+      <rect x="336" y="368" width="40" height="40" fill="${colors.fur}"/>
+      <rect x="200" y="370" width="28" height="10" fill="${colors.stripe}"/>
+      <rect x="284" y="370" width="28" height="10" fill="${colors.stripe}"/>
     </svg>
   `;
 
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/\s+/g, " ").trim())}`;
-}
-
-function escapeSvg(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
