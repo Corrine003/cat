@@ -78,6 +78,7 @@ type AccessoryInstance = {
   x: number;
   y: number;
   scale: number;
+  rotation: number;
   colors: AccessoryColors;
 };
 
@@ -85,9 +86,10 @@ type CatLayer = {
   x: number;
   y: number;
   scale: number;
+  rotation: number;
 };
 
-const defaultCatLayer: CatLayer = { x: 50, y: 50, scale: 0.82 };
+const defaultCatLayer: CatLayer = { x: 50, y: 50, scale: 0.82, rotation: 0 };
 
 type ActiveCanvasItem =
   | { kind: "cat" }
@@ -900,6 +902,7 @@ function makeAccessoryInstance(accessoryId: AccessoryId): AccessoryInstance {
     x: clamp(item.defaultPlacement.x + drift, 4, 96),
     y: clamp(item.defaultPlacement.y + drift, 4, 96),
     scale: item.defaultPlacement.scale,
+    rotation: 0,
     colors: { ...item.defaultColors },
   };
 }
@@ -1391,6 +1394,17 @@ export default function Home() {
     setCatLayer((current) => ({ ...current, scale: clamp(current.scale + delta, 0.45, 1.35) }));
   }
 
+  function rotateCat(delta: number) {
+    setCatLayer((current) => ({ ...current, rotation: current.rotation + delta }));
+  }
+
+  function rotateActiveAccessory(delta: number) {
+    if (!activeAccessoryUid) return;
+    setAccessories((current) => current.map((item) => (
+      item.uid === activeAccessoryUid ? { ...item, rotation: item.rotation + delta } : item
+    )));
+  }
+
   function beginCanvasItemResize(
     event: PointerEvent<HTMLElement>,
     kind: "cat" | "accessory",
@@ -1862,7 +1876,7 @@ export default function Home() {
                         style={{
                           left: `${catLayer.x}%`,
                           top: `${catLayer.y}%`,
-                          transform: `translate(-50%, -50%) scale(${catLayer.scale})`,
+                          transform: `translate(-50%, -50%) rotate(${catLayer.rotation}deg) scale(${catLayer.scale})`,
                         }}
                       >
                         <img crossOrigin="anonymous" src={posterImage} alt={`${catName}的像素猫底图`} />
@@ -1878,7 +1892,7 @@ export default function Home() {
                             "--accessory-size": `${getPosterAccessoryCanvasSize(item.accessoryId)}px`,
                             left: `${item.x}%`,
                             top: `${item.y}%`,
-                            transform: `translate(-50%, -50%) scale(${item.scale})`,
+                            transform: `translate(-50%, -50%) rotate(${item.rotation}deg) scale(${item.scale})`,
                           } as CSSProperties}
                         >
                           <AccessoryIcon id={item.accessoryId} colors={item.colors} />
@@ -1979,7 +1993,7 @@ export default function Home() {
                       style={{
                         left: `${catLayer.x}%`,
                         top: `${catLayer.y}%`,
-                        transform: `translate(-50%, -50%) scale(${catLayer.scale})`,
+                        transform: `translate(-50%, -50%) rotate(${catLayer.rotation}deg) scale(${catLayer.scale})`,
                       }}
                       onPointerDown={(event) => beginCatDrag(event, editorPhotoRef.current)}
                       onPointerMove={(event) => dragCat(event, editorPhotoRef.current)}
@@ -2027,7 +2041,7 @@ export default function Home() {
                           "--accessory-size": `${getAccessoryCanvasSize(item.accessoryId)}px`,
                           left: `${item.x}%`,
                           top: `${item.y}%`,
-                          transform: `translate(-50%, -50%) scale(${item.scale})`,
+                          transform: `translate(-50%, -50%) rotate(${item.rotation}deg) scale(${item.scale})`,
                         } as CSSProperties}
                         onPointerDown={(event) => beginAccessoryDrag(event, item.uid, editorPhotoRef.current)}
                         onPointerMove={(event) => dragAccessory(event, item.uid, editorPhotoRef.current)}
@@ -2109,12 +2123,16 @@ export default function Home() {
                   </div>
                   <div className="accessory-size-row editor-size-row">
                     <span>{activeAccessoryMeta.label}</span>
+                    <button onClick={() => rotateActiveAccessory(-15)} disabled={!activeAccessoryUid}>左旋</button>
+                    <button onClick={() => rotateActiveAccessory(15)} disabled={!activeAccessoryUid}>右旋</button>
                     <button onClick={removeActiveAccessory} disabled={!activeAccessoryUid}>删除</button>
                     <button onClick={resetAccessories}>重置</button>
                   </div>
                   <div className="accessory-size-row cat-size-row">
                     <button onClick={() => resizeCat(-0.08)}>猫缩小</button>
+                    <button onClick={() => rotateCat(-15)}>左旋</button>
                     <span>猫猫图层</span>
+                    <button onClick={() => rotateCat(15)}>右旋</button>
                     <button onClick={() => resizeCat(0.08)}>猫放大</button>
                   </div>
                   <div className={`result-photo-prompt ${photo ? "ready" : "missing"}`}>

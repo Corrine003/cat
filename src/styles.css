@@ -1430,11 +1430,11 @@ p {
 }
 
 .editor-size-row {
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) repeat(4, auto);
 }
 
 .cat-size-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
 }
 
 .editor-help {
