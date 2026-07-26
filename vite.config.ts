@@ -10,6 +10,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: () => "/.netlify/functions/generate-cat-image",
       },
+      "/api/deepseek-chat": {
+        target: "http://localhost:9999",
+        changeOrigin: true,
+        rewrite: () => "/.netlify/functions/deepseek-chat",
+      },
     },
   },
 });

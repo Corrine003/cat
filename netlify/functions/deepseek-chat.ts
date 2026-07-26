@@ -1,0 +1,133 @@
+import type { Handler } from "@netlify/functions";
+
+type DeepSeekRole = "system" | "user" | "assistant";
+
+type DeepSeekMessage = {
+  role: DeepSeekRole;
+  content: string;
+};
+
+type DeepSeekRequest = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  systemPrompt?: string;
+  prompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  thinking?: "enabled" | "disabled";
+  reasoningEffort?: "high" | "max";
+};
+
+const jsonHeaders = {
+  "Content-Type": "application/json; charset=utf-8",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+export const handler: Handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: jsonHeaders, body: "" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers: jsonHeaders,
+      body: JSON.stringify({ error: "Method not allowed" }),
+    };
+  }
+
+  try {
+    const payload = JSON.parse(event.body || "{}") as DeepSeekRequest;
+    const apiKey = payload.apiKey?.trim() || process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return {
+        statusCode: 400,
+        headers: jsonHeaders,
+        body: JSON.stringify({ error: "缺少 DeepSeek API Key。" }),
+      };
+    }
+
+    const prompt = payload.prompt?.trim();
+    if (!prompt) {
+      return {
+        statusCode: 400,
+        headers: jsonHeaders,
+        body: JSON.stringify({ error: "请输入要发送给 DeepSeek 的内容。" }),
+      };
+    }
+
+    const baseUrl = sanitizeBaseUrl(payload.baseUrl) || "https://api.deepseek.com";
+    const model = payload.model?.trim() || "deepseek-v4-pro";
+    const messages: DeepSeekMessage[] = [];
+    if (payload.systemPrompt?.trim()) {
+      messages.push({ role: "system", content: payload.systemPrompt.trim() });
+    }
+    messages.push({ role: "user", content: prompt });
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: clampNumber(payload.temperature, 0, 2, 0.7),
+        max_tokens: Math.round(clampNumber(payload.maxTokens, 1, 8192, 2048)),
+        thinking: { type: payload.thinking || "enabled" },
+        reasoning_effort: payload.reasoningEffort || "high",
+        stream: false,
+      }),
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        statusCode: response.status,
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          error: data?.error?.message || data?.message || `DeepSeek API returned ${response.status}`,
+          raw: data,
+        }),
+      };
+    }
+
+    const message = data?.choices?.[0]?.message;
+    return {
+      statusCode: 200,
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        model: data?.model || model,
+        content: message?.content || "",
+        reasoningContent: message?.reasoning_content || "",
+        usage: data?.usage || null,
+        raw: data,
+      }),
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        error: error instanceof Error ? error.message : "DeepSeek 请求失败。",
+      }),
+    };
+  }
+};
+
+function sanitizeBaseUrl(value?: string) {
+  if (!value) return "";
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!/^https:\/\/[a-zA-Z0-9.-]+(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=-]*)?$/.test(trimmed)) return "";
+  return trimmed;
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(Math.max(number, min), max);
+}
