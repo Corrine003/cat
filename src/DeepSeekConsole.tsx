@@ -1,5 +1,5 @@
-import { FormEvent, useMemo, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Send, Trash2 } from "lucide-react";
+import { FormEvent, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Copy, Loader2, Send, Square, Trash2 } from "lucide-react";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -32,6 +32,7 @@ export default function DeepSeekConsole() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<DeepSeekResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
+  const requestAbortRef = useRef<AbortController | null>(null);
 
   const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
   const usageLine = useMemo(() => {
@@ -52,10 +53,13 @@ export default function DeepSeekConsole() {
     setMessages(nextMessages);
     saveMessages(nextMessages);
     setPrompt("");
+    const requestAbort = new AbortController();
+    requestAbortRef.current = requestAbort;
 
     try {
       const response = await fetch("/api/deepseek-chat", {
         method: "POST",
+        signal: requestAbort.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey,
@@ -72,6 +76,7 @@ export default function DeepSeekConsole() {
       });
       const data = (await response.json()) as DeepSeekResponse;
       if (!response.ok) throw new Error(data.error || `请求失败：${response.status}`);
+      requestAbortRef.current = null;
       setResult(data);
       const assistantMessage: ChatMessage = { role: "assistant", content: data.content || "" };
       const updatedMessages = data.content ? [...nextMessages, assistantMessage] : nextMessages;
@@ -79,7 +84,15 @@ export default function DeepSeekConsole() {
       saveMessages(updatedMessages);
       setStatus("ready");
     } catch (error) {
-      setResult({ error: error instanceof Error ? error.message : "请求失败" });
+      requestAbortRef.current = null;
+      setResult({
+        error:
+          error instanceof Error && error.name === "AbortError"
+            ? "已取消本次 DeepSeek 请求。"
+            : error instanceof Error
+              ? error.message
+              : "请求失败",
+      });
       setMessages(messages);
       saveMessages(messages);
       setPrompt(userMessage.content);
@@ -94,10 +107,16 @@ export default function DeepSeekConsole() {
   }
 
   function clearConversation() {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
     setMessages([]);
     setResult(null);
     setStatus("idle");
     localStorage.removeItem("deepseek-console-messages");
+  }
+
+  function cancelRequest() {
+    requestAbortRef.current?.abort();
   }
 
   return (
@@ -192,6 +211,12 @@ export default function DeepSeekConsole() {
               {status === "loading" ? <Loader2 className="spin-icon" size={18} /> : <Send size={18} />}
               {status === "loading" ? "正在请求 DeepSeek" : "发送到 DeepSeek V4 Pro"}
             </button>
+            {status === "loading" && (
+              <button className="secondary-button full" type="button" onClick={cancelRequest}>
+                <Square size={16} />
+                取消本次请求
+              </button>
+            )}
           </section>
         </form>
 

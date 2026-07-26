@@ -27,6 +27,8 @@ const jsonHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const requestTimeoutMs = 90_000;
+
 export const handler: Handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: jsonHeaders, body: "" };
@@ -73,8 +75,11 @@ export const handler: Handler = async (event) => {
       messages.push({ role: "user", content: prompt });
     }
 
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), requestTimeoutMs);
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
+      signal: abortController.signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
@@ -88,7 +93,7 @@ export const handler: Handler = async (event) => {
         reasoning_effort: payload.reasoningEffort || "high",
         stream: false,
       }),
-    });
+    }).finally(() => clearTimeout(timeout));
 
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -119,7 +124,12 @@ export const handler: Handler = async (event) => {
       statusCode: 500,
       headers: jsonHeaders,
       body: JSON.stringify({
-        error: error instanceof Error ? error.message : "DeepSeek 请求失败。",
+        error:
+          error instanceof Error && error.name === "AbortError"
+            ? "DeepSeek 请求超时，可能是网络连接 DeepSeek API 太慢或接口没有响应。"
+            : error instanceof Error
+              ? error.message
+              : "DeepSeek 请求失败。",
       }),
     };
   }
