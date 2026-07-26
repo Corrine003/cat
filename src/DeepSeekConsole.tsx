@@ -1,5 +1,10 @@
 import { FormEvent, useMemo, useState } from "react";
-import { ArrowLeft, Copy, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Send, Trash2 } from "lucide-react";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
 
 type DeepSeekResponse = {
   model?: string;
@@ -16,6 +21,7 @@ type DeepSeekResponse = {
 
 export default function DeepSeekConsole() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("deepseek-console-key") || "");
+  const [messages, setMessages] = useState<ChatMessage[]>(() => readSavedMessages());
   const [baseUrl, setBaseUrl] = useState("https://api.deepseek.com");
   const [model, setModel] = useState("deepseek-v4-pro");
   const [thinking, setThinking] = useState<"enabled" | "disabled">("enabled");
@@ -27,6 +33,7 @@ export default function DeepSeekConsole() {
   const [result, setResult] = useState<DeepSeekResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ready">("idle");
 
+  const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant");
   const usageLine = useMemo(() => {
     if (!result?.usage) return "";
     const input = result.usage.prompt_tokens ?? "-";
@@ -40,6 +47,11 @@ export default function DeepSeekConsole() {
     setStatus("loading");
     setResult(null);
     localStorage.setItem("deepseek-console-key", apiKey);
+    const userMessage: ChatMessage = { role: "user", content: prompt.trim() };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
+    saveMessages(nextMessages);
+    setPrompt("");
 
     try {
       const response = await fetch("/api/deepseek-chat", {
@@ -55,22 +67,37 @@ export default function DeepSeekConsole() {
           maxTokens,
           systemPrompt,
           prompt,
+          messages: nextMessages,
         }),
       });
       const data = (await response.json()) as DeepSeekResponse;
       if (!response.ok) throw new Error(data.error || `请求失败：${response.status}`);
       setResult(data);
+      const assistantMessage: ChatMessage = { role: "assistant", content: data.content || "" };
+      const updatedMessages = data.content ? [...nextMessages, assistantMessage] : nextMessages;
+      setMessages(updatedMessages);
+      saveMessages(updatedMessages);
       setStatus("ready");
     } catch (error) {
       setResult({ error: error instanceof Error ? error.message : "请求失败" });
+      setMessages(messages);
+      saveMessages(messages);
+      setPrompt(userMessage.content);
       setStatus("error");
     }
   }
 
   async function copyResult() {
-    const text = result?.content || "";
+    const text = latestAssistant?.content || result?.content || "";
     if (!text) return;
     await navigator.clipboard.writeText(text);
+  }
+
+  function clearConversation() {
+    setMessages([]);
+    setResult(null);
+    setStatus("idle");
+    localStorage.removeItem("deepseek-console-messages");
   }
 
   return (
@@ -134,6 +161,25 @@ export default function DeepSeekConsole() {
           </aside>
 
           <section className="deepseek-workbench panel">
+            <div className="deepseek-chat-head">
+              <strong>连续对话</strong>
+              <button className="secondary-button" type="button" onClick={clearConversation} disabled={messages.length === 0 || status === "loading"}>
+                <Trash2 size={16} />
+                清空
+              </button>
+            </div>
+            <div className="deepseek-chat-log">
+              {messages.length === 0 ? (
+                <p className="deepseek-empty">还没有对话。发送第一句话后，后续请求会自动带上历史消息。</p>
+              ) : (
+                messages.map((message, index) => (
+                  <article className={`deepseek-message ${message.role}`} key={`${message.role}-${index}`}>
+                    <span>{message.role === "user" ? "你" : "DeepSeek"}</span>
+                    <p>{message.content}</p>
+                  </article>
+                ))
+              )}
+            </div>
             <label>
               <span>System Prompt</span>
               <textarea value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} rows={4} />
@@ -155,9 +201,9 @@ export default function DeepSeekConsole() {
               <strong>{status === "error" ? "请求失败" : "输出结果"}</strong>
               <span>{result?.model || model}{usageLine ? ` · ${usageLine}` : ""}</span>
             </div>
-            <button className="secondary-button" onClick={copyResult} disabled={!result?.content}>
+            <button className="secondary-button" onClick={copyResult} disabled={!latestAssistant?.content && !result?.content}>
               <Copy size={16} />
-              复制
+              复制最后回答
             </button>
           </div>
           {result?.reasoningContent && (
@@ -171,4 +217,26 @@ export default function DeepSeekConsole() {
       </section>
     </main>
   );
+}
+
+function readSavedMessages(): ChatMessage[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("deepseek-console-messages") || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((message): message is ChatMessage => {
+      return (
+        message &&
+        typeof message === "object" &&
+        (message.role === "user" || message.role === "assistant") &&
+        typeof message.content === "string" &&
+        message.content.trim().length > 0
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function saveMessages(messages: ChatMessage[]) {
+  localStorage.setItem("deepseek-console-messages", JSON.stringify(messages.slice(-40)));
 }

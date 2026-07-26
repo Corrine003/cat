@@ -13,6 +13,7 @@ type DeepSeekRequest = {
   model?: string;
   systemPrompt?: string;
   prompt?: string;
+  messages?: DeepSeekMessage[];
   temperature?: number;
   maxTokens?: number;
   thinking?: "enabled" | "disabled";
@@ -51,7 +52,8 @@ export const handler: Handler = async (event) => {
     }
 
     const prompt = payload.prompt?.trim();
-    if (!prompt) {
+    const conversation = normalizeMessages(payload.messages);
+    if (!prompt && conversation.length === 0) {
       return {
         statusCode: 400,
         headers: jsonHeaders,
@@ -65,7 +67,11 @@ export const handler: Handler = async (event) => {
     if (payload.systemPrompt?.trim()) {
       messages.push({ role: "system", content: payload.systemPrompt.trim() });
     }
-    messages.push({ role: "user", content: prompt });
+    if (conversation.length > 0) {
+      messages.push(...conversation);
+    } else if (prompt) {
+      messages.push({ role: "user", content: prompt });
+    }
 
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -130,4 +136,20 @@ function clampNumber(value: unknown, min: number, max: number, fallback: number)
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
+}
+
+function normalizeMessages(value: unknown): DeepSeekMessage[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((message) => {
+      if (!message || typeof message !== "object") return null;
+      const role = (message as { role?: unknown }).role;
+      const content = (message as { content?: unknown }).content;
+      if ((role !== "user" && role !== "assistant") || typeof content !== "string") return null;
+      const trimmed = content.trim();
+      if (!trimmed) return null;
+      return { role, content: trimmed };
+    })
+    .filter((message): message is DeepSeekMessage => Boolean(message))
+    .slice(-40);
 }

@@ -2425,6 +2425,70 @@ blockquote {
   min-height: 250px;
 }
 
+.deepseek-chat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.deepseek-chat-head strong {
+  font-size: 1.05rem;
+}
+
+.deepseek-chat-log {
+  min-height: 220px;
+  max-height: 420px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.deepseek-empty {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.7;
+}
+
+.deepseek-message {
+  width: min(78%, 720px);
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.deepseek-message.user {
+  justify-self: end;
+  border-color: rgba(139, 90, 36, 0.32);
+  background: #fff0c8;
+}
+
+.deepseek-message.assistant {
+  justify-self: start;
+}
+
+.deepseek-message span {
+  color: var(--brown);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.deepseek-message p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.65;
+}
+
 .deepseek-two {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
