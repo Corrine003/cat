@@ -1064,10 +1064,10 @@ p {
 
 .editor-stage.pixel-bg-none {
   background:
-    linear-gradient(rgba(23, 32, 47, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 32, 47, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(23, 32, 47, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 32, 47, 0.12) 1px, transparent 1px),
     #fff !important;
-  background-size: 32px 32px;
+  background-size: 16px 16px;
 }
 
 .editor-stage.capture-clean {
@@ -1158,7 +1158,7 @@ p {
 
 .accessory-sticker svg {
   display: block;
-  width: 72px;
+  width: var(--accessory-size, 72px);
   height: auto;
 }
 
@@ -1379,8 +1379,8 @@ p {
 }
 
 .editor-sticker {
-  width: 96px;
-  height: 78px;
+  width: max-content;
+  height: max-content;
 }
 
 .editor-tools {
@@ -1842,9 +1842,14 @@ p {
 
 .result-image-tools {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
-  width: min(100%, 640px);
+  width: min(100%, 720px);
+}
+
+.overview-auth-code-field,
+.overview-image-status {
+  width: min(100%, 720px);
 }
 
 .upload-action {

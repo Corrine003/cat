@@ -17,12 +17,13 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { ChangeEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, type CSSProperties, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessoryIcon,
   accessoryCatalog,
   accessoryColorPalettes,
   accessoryColorSlots,
+  getAccessoryCanvasSize,
   getAccessoryLabel,
   type AccessoryColorSlot,
   type AccessoryColors,
@@ -864,6 +865,17 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+function snapToEditorGrid(value: number, size: number) {
+  const gridSize = 16;
+  const step = (gridSize / size) * 100;
+  if (!Number.isFinite(step) || step <= 0) return value;
+  return clamp(Math.round(value / step) * step, 4, 96);
+}
+
+function getPosterAccessoryCanvasSize(id: AccessoryId) {
+  return Math.round(getAccessoryCanvasSize(id) * 0.42);
+}
+
 const personalityStampMap: Record<DimensionId, { title: string; icon: AccessoryId }> = {
   perception: { title: "雷达常开", icon: "tinyButterfly" },
   exploration: { title: "先去看看", icon: "tinyBird" },
@@ -1175,9 +1187,26 @@ export default function Home() {
     link.click();
   }
 
+  async function waitForImages(container: HTMLElement) {
+    const images = Array.from(container.querySelectorAll("img"));
+    await Promise.all(images.map(async (image) => {
+      if (image.complete && image.naturalWidth > 0) return;
+      if (typeof image.decode === "function") {
+        await image.decode().catch(() => undefined);
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        image.onload = () => resolve();
+        image.onerror = () => resolve();
+      });
+    }));
+  }
+
   async function finishImageEditor() {
     if (editorPhotoRef.current) {
       try {
+        setImageGenerationNote("正在保存头像...");
+        await waitForImages(editorPhotoRef.current);
         editorPhotoRef.current.classList.add("capture-clean");
         const image = await toPng(editorPhotoRef.current, {
           cacheBust: true,
@@ -1186,6 +1215,13 @@ export default function Home() {
           filter: (node) => !(node instanceof HTMLElement && node.dataset.editorControl === "true"),
         });
         setCompositedAvatarImage(image);
+        setImageGenerationStatus("ready");
+        setImageGenerationNote("头像已保存到总览卡。");
+      } catch (error) {
+        console.error("Avatar save failed", error);
+        setImageGenerationStatus("error");
+        setImageGenerationNote(`头像保存失败：${error instanceof Error ? error.message : "请稍等图片加载完成后再试一次。"}`);
+        return;
       } finally {
         editorPhotoRef.current.classList.remove("capture-clean");
       }
@@ -1210,16 +1246,16 @@ export default function Home() {
   function moveAccessory(event: PointerEvent<HTMLElement>, uid: string, stage: HTMLDivElement | null, offset: DragOffset = { x: 0, y: 0 }) {
     const rect = stage?.getBoundingClientRect();
     if (!rect) return;
-    const x = clamp(((event.clientX - rect.left) / rect.width) * 100 - offset.x, 4, 96);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100 - offset.y, 4, 96);
+    const x = snapToEditorGrid(clamp(((event.clientX - rect.left) / rect.width) * 100 - offset.x, 4, 96), rect.width);
+    const y = snapToEditorGrid(clamp(((event.clientY - rect.top) / rect.height) * 100 - offset.y, 4, 96), rect.height);
     setAccessories((current) => current.map((item) => (item.uid === uid ? { ...item, x, y } : item)));
   }
 
   function moveCat(event: PointerEvent<HTMLElement>, stage: HTMLDivElement | null, offset: DragOffset = { x: 0, y: 0 }) {
     const rect = stage?.getBoundingClientRect();
     if (!rect) return;
-    const x = clamp(((event.clientX - rect.left) / rect.width) * 100 - offset.x, 4, 96);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100 - offset.y, 4, 96);
+    const x = snapToEditorGrid(clamp(((event.clientX - rect.left) / rect.width) * 100 - offset.x, 4, 96), rect.width);
+    const y = snapToEditorGrid(clamp(((event.clientY - rect.top) / rect.height) * 100 - offset.y, 4, 96), rect.height);
     setCatLayer((current) => ({ ...current, x, y }));
   }
 
@@ -1763,12 +1799,26 @@ export default function Home() {
 
             {resultView === "image" && (
               <aside className="share-column">
+              {isDemoPreview && (
+                <label className="image-auth-code-field overview-auth-code-field" data-export-hidden="true">
+                  <span>测试生图授权码</span>
+                  <input
+                    value={imageGenerationAuthCode}
+                    onChange={(event) => setImageGenerationAuthCode(event.target.value)}
+                    placeholder="输入授权码后生成像素猫"
+                  />
+                </label>
+              )}
               <div className="result-image-tools" data-export-hidden="true">
                 <label className={`secondary-button full upload-action ${photo ? "ready" : "missing"}`}>
                   <Upload size={17} />
                   {photo ? "更换猫咪照片" : "上传猫咪照片"}
                   <input type="file" accept="image/*" onChange={handlePhoto} />
                 </label>
+                <button className="image-gen-button full" onClick={generatePixelCatImage} disabled={imageGenerationStatus === "loading"}>
+                  <Sparkles size={17} />
+                  {imageGenerationStatus === "loading" ? "正在生成头像" : "生成像素猫头像"}
+                </button>
                 <button className="secondary-button full" onClick={openImageEditor} type="button">
                   <Pencil size={17} />
                   编辑像素猫头像
@@ -1782,6 +1832,15 @@ export default function Home() {
                   重新测试
                 </button>
               </div>
+              {(imageGenerationStatus !== "idle" || imageGenerationNote) && (
+                <div className={`image-gen-status-card overview-image-status ${imageGenerationTone}`} data-export-hidden="true">
+                  <div>
+                    <strong>{imageGenerationBadgeLabel}</strong>
+                    <span>{imageGenerationNote || "像素猫头像状态"}</span>
+                  </div>
+                  {imageGenerationStatus === "loading" ? <Sparkles size={18} /> : <BadgeCheck size={18} />}
+                </div>
+              )}
               {!photo && (
                 <p className="report-upload-hint" data-export-hidden="true">
                   生成 AI 像素猫前，请先上传一张脸部清楚的猫咪照片。
@@ -1806,7 +1865,7 @@ export default function Home() {
                           transform: `translate(-50%, -50%) scale(${catLayer.scale})`,
                         }}
                       >
-                        <img src={posterImage} alt={`${catName}的像素猫底图`} />
+                        <img crossOrigin="anonymous" src={posterImage} alt={`${catName}的像素猫底图`} />
                       </div>
                     ) : <Camera size={52} />}
                     {!compositedAvatarImage && accessories.map((item) => {
@@ -1816,10 +1875,11 @@ export default function Home() {
                           className="accessory-sticker poster-sticker"
                           aria-label={getAccessoryLabel(item.accessoryId)}
                           style={{
+                            "--accessory-size": `${getPosterAccessoryCanvasSize(item.accessoryId)}px`,
                             left: `${item.x}%`,
                             top: `${item.y}%`,
                             transform: `translate(-50%, -50%) scale(${item.scale})`,
-                          }}
+                          } as CSSProperties}
                         >
                           <AccessoryIcon id={item.accessoryId} colors={item.colors} />
                         </div>
@@ -1926,7 +1986,7 @@ export default function Home() {
                       onPointerUp={endCatDrag}
                       onPointerCancel={endCatDrag}
                     >
-                      <img src={posterImage} alt={`${catName}的像素猫编辑底图`} />
+                      <img crossOrigin="anonymous" src={posterImage} alt={`${catName}的像素猫编辑底图`} />
                       {isCatSelected && (
                         <div className="canvas-item-controls" data-editor-control="true" aria-hidden="true">
                           <button
@@ -1964,10 +2024,11 @@ export default function Home() {
                         tabIndex={0}
                         aria-label={`移动${getAccessoryLabel(item.accessoryId)}`}
                         style={{
+                          "--accessory-size": `${getAccessoryCanvasSize(item.accessoryId)}px`,
                           left: `${item.x}%`,
                           top: `${item.y}%`,
                           transform: `translate(-50%, -50%) scale(${item.scale})`,
-                        }}
+                        } as CSSProperties}
                         onPointerDown={(event) => beginAccessoryDrag(event, item.uid, editorPhotoRef.current)}
                         onPointerMove={(event) => dragAccessory(event, item.uid, editorPhotoRef.current)}
                         onPointerUp={endAccessoryDrag}

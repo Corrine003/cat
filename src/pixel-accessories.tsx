@@ -749,6 +749,17 @@ export function getAccessoryLabel(id: AccessoryId) {
   return accessoryCatalog.find((item) => item.id === id)?.label ?? "像素装饰";
 }
 
+export function getAccessoryCanvasSize(id: AccessoryId) {
+  if (["partyDress", "cloudDress", "wizardCape", "sailorCollar"].includes(id)) return 118;
+  if (["oakTree", "pineTree", "bonsaiTree"].includes(id)) return 110;
+  if (["starCrown", "royalCrown", "moonTiara", "flowerCrown", "roundGlasses", "starGlasses"].includes(id)) return 92;
+  if (["moonNecklace", "pearlCollar", "bellCharm", "heartPendant", "woodFence"].includes(id)) return 86;
+  if (["crystalEarring", "pearlEarring", "heartSpark", "starCharm", "fishPin"].includes(id)) return 40;
+  if (["tinyBird", "tinyButterfly", "flowerSprig", "luckyClover", "mushroom", "pixelSun"].includes(id)) return 48;
+  if (["bush", "grassTuft", "roundStone", "pixelCloud"].includes(id)) return 64;
+  return 72;
+}
+
 export function AccessoryIcon({ id, colors }: { id: AccessoryId; colors?: AccessoryColors }) {
   const item = accessoryCatalog.find((entry) => entry.id === id) ?? accessoryCatalog[0];
   return item.render(colors ?? item.defaultColors);
