@@ -27,7 +27,7 @@ const jsonHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const requestTimeoutMs = 90_000;
+const requestTimeoutMs = 25_000;
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
@@ -126,7 +126,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({
         error:
           error instanceof Error && error.name === "AbortError"
-            ? "DeepSeek 请求超时，可能是网络连接 DeepSeek API 太慢或接口没有响应。"
+            ? "DeepSeek 请求超过 25 秒，已自动取消。可能是网络连接 DeepSeek API 太慢、Key 无法访问，或接口暂时没有响应。"
             : error instanceof Error
               ? error.message
               : "DeepSeek 请求失败。",
