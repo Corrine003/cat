@@ -58,7 +58,7 @@ const server = http.createServer(async (request, response) => {
         model,
         messages,
         temperature: clampNumber(payload.temperature, 0, 2, 0.7),
-        max_tokens: Math.round(clampNumber(payload.maxTokens, 1, 8192, 2048)),
+        max_tokens: Math.round(clampNumber(payload.maxTokens, 1, 8192, 8192)),
         thinking: { type: payload.thinking || "enabled" },
         reasoning_effort: payload.reasoningEffort || "high",
         stream: false,
@@ -79,6 +79,7 @@ const server = http.createServer(async (request, response) => {
       model: data?.model || model,
       content: message?.content || "",
       reasoningContent: message?.reasoning_content || "",
+      finishReason: data?.choices?.[0]?.finish_reason || "",
       usage: data?.usage || null,
       raw: data,
     });

@@ -10,6 +10,7 @@ type DeepSeekResponse = {
   model?: string;
   content?: string;
   reasoningContent?: string;
+  finishReason?: string;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
@@ -27,7 +28,7 @@ export default function DeepSeekConsole() {
   const [thinking, setThinking] = useState<"enabled" | "disabled">("enabled");
   const [reasoningEffort, setReasoningEffort] = useState<"high" | "max">("high");
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(2048);
+  const [maxTokens, setMaxTokens] = useState(8192);
   const [systemPrompt, setSystemPrompt] = useState("你是一个严谨、直接、可执行的中文助手。");
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<DeepSeekResponse | null>(null);
@@ -40,7 +41,8 @@ export default function DeepSeekConsole() {
     const input = result.usage.prompt_tokens ?? "-";
     const output = result.usage.completion_tokens ?? "-";
     const total = result.usage.total_tokens ?? "-";
-    return `输入 ${input} / 输出 ${output} / 总计 ${total} tokens`;
+    const finish = result.finishReason ? ` / 结束原因 ${result.finishReason}` : "";
+    return `输入 ${input} / 输出 ${output} / 总计 ${total} tokens${finish}`;
   }, [result]);
 
   async function callDeepSeek(event: FormEvent) {
@@ -236,6 +238,9 @@ export default function DeepSeekConsole() {
               <summary>查看 reasoning_content</summary>
               <pre>{result.reasoningContent}</pre>
             </details>
+          )}
+          {result?.finishReason === "length" && (
+            <p className="deepseek-warning">这次回答被最大输出长度截断了。把“最大输出”调大，或者继续追问“从刚才断掉的地方继续”。</p>
           )}
           <pre className="deepseek-output">{result?.error || result?.content || "还没有输出。"}</pre>
         </section>

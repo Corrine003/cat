@@ -2553,6 +2553,17 @@ blockquote {
   font-weight: 900;
 }
 
+.deepseek-warning {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #f0c36d;
+  border-radius: 8px;
+  background: #fff3cf;
+  color: #7b4a09;
+  font-weight: 900;
+  line-height: 1.6;
+}
+
 .spin-icon {
   animation: spin 1s linear infinite;
 }
