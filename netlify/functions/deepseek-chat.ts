@@ -88,7 +88,7 @@ export const handler: Handler = async (event) => {
         model,
         messages,
         temperature: clampNumber(payload.temperature, 0, 2, 0.7),
-        max_tokens: Math.round(clampNumber(payload.maxTokens, 1, 8192, 8192)),
+        max_tokens: Math.round(clampNumber(payload.maxTokens, 1, 32768, 32768)),
         thinking: { type: payload.thinking || "enabled" },
         reasoning_effort: payload.reasoningEffort || "high",
         stream: false,

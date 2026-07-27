@@ -28,7 +28,7 @@ export default function DeepSeekConsole() {
   const [thinking, setThinking] = useState<"enabled" | "disabled">("enabled");
   const [reasoningEffort, setReasoningEffort] = useState<"high" | "max">("high");
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(8192);
+  const [maxTokens, setMaxTokens] = useState(32768);
   const [systemPrompt, setSystemPrompt] = useState("你是一个严谨、直接、可执行的中文助手。");
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<DeepSeekResponse | null>(null);
@@ -176,7 +176,7 @@ export default function DeepSeekConsole() {
               </label>
               <label>
                 <span>最大输出</span>
-                <input type="number" min="1" max="8192" value={maxTokens} onChange={(event) => setMaxTokens(Number(event.target.value))} />
+                <input type="number" min="1" max="32768" value={maxTokens} onChange={(event) => setMaxTokens(Number(event.target.value))} />
               </label>
             </div>
           </aside>
