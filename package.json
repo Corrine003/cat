@@ -6,8 +6,9 @@
   "engines": {
     "node": ">=20"
   },
-  "scripts": {
+    "scripts": {
     "dev": "vite",
+    "dev:deepseek": "node scripts/deepseek-proxy.mjs",
     "dev:functions": "npx netlify functions:serve --port 9999",
     "dev:netlify": "npx netlify dev --port 8888",
     "typecheck": "tsc --noEmit",

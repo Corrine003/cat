@@ -1,6 +1,8 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+const deepSeekProxyTarget = process.env.DEEPSEEK_PROXY_TARGET || "http://localhost:9998";
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -11,9 +13,8 @@ export default defineConfig({
         rewrite: () => "/.netlify/functions/generate-cat-image",
       },
       "/api/deepseek-chat": {
-        target: "http://localhost:9999",
+        target: deepSeekProxyTarget,
         changeOrigin: true,
-        rewrite: () => "/.netlify/functions/deepseek-chat",
       },
     },
   },
